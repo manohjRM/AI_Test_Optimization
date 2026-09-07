@@ -97,6 +97,99 @@ def detect_test_automation(repo_path: Path) -> tuple[bool, str | None]:
     return False, None
 
 
+FRAMEWORK_INDICATORS: dict[str, list[str]] = {
+    "pytest": ["pytest.ini", "conftest.py", "setup.cfg", "tox.ini"],
+    "jest": ["jest.config.js", "jest.config.ts", "jest.config.mjs", "jest.config.cjs"],
+    "vitest": ["vitest.config.js", "vitest.config.ts", "vitest.config.mjs"],
+    "playwright": ["playwright.config.js", "playwright.config.ts"],
+    "cypress": ["cypress.config.js", "cypress.config.ts"],
+    "mocha": [".mocharc.yml", ".mocharc.json", ".mocharc.js"],
+    "karma": ["karma.conf.js"],
+    "phpunit": ["phpunit.xml", "phpunit.xml.dist"],
+    "junit": ["build.gradle", "pom.xml"],
+}
+
+PATTERN_FRAMEWORK_MAP: dict[str, str] = {
+    "test_*.py": "pytest",
+    "*_test.py": "pytest",
+    "*_test.go": "go test",
+    "*.test.ts": "jest/vitest",
+    "*.test.tsx": "jest/vitest",
+    "*.test.js": "jest/vitest",
+    "*.test.jsx": "jest/vitest",
+    "*.spec.ts": "playwright/jasmine",
+    "*.spec.tsx": "playwright/jasmine",
+    "*.spec.js": "playwright/jasmine",
+    "*.spec.jsx": "playwright/jasmine",
+    "*Test.java": "junit",
+    "*Tests.cs": "nunit/xunit",
+}
+
+
+def count_test_files(repo_path: Path) -> dict:
+    """Count test files in a repo and return structured stats.
+
+    Returns a dict with total_files, frameworks, breakdown, test_directories.
+    """
+    breakdown: dict[str, int] = {}
+    test_dirs: set[str] = set()
+    seen_files: set[Path] = set()
+
+    for dir_name in TEST_DIRECTORIES:
+        candidate = repo_path / dir_name
+        if candidate.is_dir():
+            for pattern in TEST_FILE_PATTERNS:
+                matches = [
+                    p for p in candidate.rglob(pattern)
+                    if _is_project_path(p.relative_to(repo_path))
+                    and p not in seen_files
+                ]
+                if matches:
+                    breakdown[pattern] = breakdown.get(pattern, 0) + len(matches)
+                    seen_files.update(matches)
+                    test_dirs.add(dir_name + "/")
+
+    for child in repo_path.iterdir():
+        if not child.is_dir():
+            continue
+        if child.name in EXCLUDED_DIRS:
+            continue
+        if child.name in TEST_DIRECTORIES:
+            continue
+        if "test" not in child.name.lower():
+            continue
+        for pattern in TEST_FILE_PATTERNS:
+            matches = [
+                p for p in child.rglob(pattern)
+                if _is_project_path(p.relative_to(repo_path))
+                and p not in seen_files
+            ]
+            if matches:
+                breakdown[pattern] = breakdown.get(pattern, 0) + len(matches)
+                seen_files.update(matches)
+                test_dirs.add(child.name + "/")
+
+    frameworks: set[str] = set()
+    for config_name, fw_name in [
+        (cfg, fw)
+        for fw, cfgs in FRAMEWORK_INDICATORS.items()
+        for cfg in cfgs
+    ]:
+        if (repo_path / config_name).is_file():
+            frameworks.add(fw_name)
+
+    for pattern, fw in PATTERN_FRAMEWORK_MAP.items():
+        if pattern in breakdown:
+            frameworks.add(fw.split("/")[0])
+
+    return {
+        "total_files": len(seen_files),
+        "frameworks": sorted(frameworks),
+        "breakdown": breakdown,
+        "test_directories": sorted(test_dirs),
+    }
+
+
 def validate_local_repo(path: str) -> tuple[bool, str]:
     """Check that a local path is a git repo with existing test automation."""
     repo_path = Path(path)

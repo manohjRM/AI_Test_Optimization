@@ -1,27 +1,46 @@
-// ABOUTME: Project detail page — shows project info and will host the optimization workflow.
-// ABOUTME: Placeholder for Chunk 2; currently displays project metadata and repo status.
+// ABOUTME: Project detail page — edit metadata, view test stats, delete project.
+// ABOUTME: Repo path is read-only; name and description are editable.
 
 "use client";
 
-import { useEffect, useState } from "react";
-import { useParams } from "next/navigation";
+import { useEffect, useState, useCallback } from "react";
+import { useParams, useRouter } from "next/navigation";
 import Link from "next/link";
-import { getProject } from "@/lib/api";
-import type { Project } from "@/types";
+import {
+  getProject,
+  updateProject,
+  deleteProject,
+  getTestStats,
+} from "@/lib/api";
+import type { Project, TestStats } from "@/types";
 
 export default function ProjectDetail() {
   const params = useParams();
+  const router = useRouter();
   const projectId = params.id as string;
 
   const [project, setProject] = useState<Project | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
+  // Editable fields
+  const [name, setName] = useState("");
+  const [description, setDescription] = useState("");
+  const [isSaving, setIsSaving] = useState(false);
+  const [saveMessage, setSaveMessage] = useState<string | null>(null);
+
+  // Test stats
+  const [stats, setStats] = useState<TestStats | null>(null);
+  const [statsLoading, setStatsLoading] = useState(false);
+  const [statsError, setStatsError] = useState<string | null>(null);
+
   useEffect(() => {
     async function fetch() {
       try {
         const data = await getProject(projectId);
         setProject(data);
+        setName(data.name);
+        setDescription(data.description ?? "");
       } catch (err) {
         setError(
           err instanceof Error ? err.message : "Failed to load project"
@@ -32,6 +51,70 @@ export default function ProjectDetail() {
     }
     fetch();
   }, [projectId]);
+
+  const fetchStats = useCallback(async () => {
+    setStatsLoading(true);
+    setStatsError(null);
+    try {
+      const data = await getTestStats(projectId);
+      setStats(data);
+    } catch (err) {
+      setStatsError(
+        err instanceof Error ? err.message : "Failed to load test stats"
+      );
+    } finally {
+      setStatsLoading(false);
+    }
+  }, [projectId]);
+
+  useEffect(() => {
+    if (
+      project &&
+      (project.repo_status === "valid" || project.repo_status === "cloned")
+    ) {
+      fetchStats();
+    }
+  }, [project, fetchStats]);
+
+  const isDirty =
+    project !== null &&
+    (name.trim() !== project.name ||
+      (description.trim() || "") !== (project.description ?? ""));
+
+  async function handleSave() {
+    if (!isDirty) return;
+    setIsSaving(true);
+    setSaveMessage(null);
+    try {
+      const updated = await updateProject(projectId, {
+        name: name.trim(),
+        description: description.trim() || undefined,
+      });
+      setProject(updated);
+      setSaveMessage("Saved");
+      setTimeout(() => setSaveMessage(null), 2000);
+    } catch (err) {
+      setSaveMessage(
+        err instanceof Error ? err.message : "Failed to save"
+      );
+    } finally {
+      setIsSaving(false);
+    }
+  }
+
+  async function handleDelete() {
+    if (!project) return;
+    if (!confirm(`Delete project "${project.name}"? This cannot be undone.`))
+      return;
+    try {
+      await deleteProject(projectId);
+      router.push("/");
+    } catch (err) {
+      setError(
+        err instanceof Error ? err.message : "Failed to delete project"
+      );
+    }
+  }
 
   if (loading) {
     return (
@@ -62,26 +145,89 @@ export default function ProjectDetail() {
 
   return (
     <main className="flex-1 flex flex-col">
-      <header className="border-b border-zinc-200 dark:border-zinc-800 px-6 py-4">
-        <div className="flex items-center gap-2 text-sm text-zinc-500 dark:text-zinc-400 mb-1">
-          <Link
-            href="/"
-            className="hover:text-zinc-900 dark:hover:text-zinc-100 transition-colors"
-          >
-            Dashboard
-          </Link>
-          <span>/</span>
-          <span>{project.name}</span>
+      {/* Header */}
+      <header className="border-b border-zinc-200 dark:border-zinc-800 px-6 py-4 flex items-start justify-between gap-4">
+        <div>
+          <div className="flex items-center gap-2 text-sm text-zinc-500 dark:text-zinc-400 mb-1">
+            <Link
+              href="/"
+              className="hover:text-zinc-900 dark:hover:text-zinc-100 transition-colors"
+            >
+              Dashboard
+            </Link>
+            <span>/</span>
+            <span>{project.name}</span>
+          </div>
+          <h1 className="text-xl font-bold">{project.name}</h1>
         </div>
-        <h1 className="text-xl font-bold">{project.name}</h1>
-        {project.description && (
-          <p className="text-sm text-zinc-500 dark:text-zinc-400 mt-1">
-            {project.description}
-          </p>
-        )}
+        <button
+          onClick={handleDelete}
+          className="shrink-0 rounded-lg border border-red-200 dark:border-red-800 px-4 py-2 text-sm font-medium text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-950 transition-colors"
+        >
+          Delete Project
+        </button>
       </header>
 
-      <div className="flex-1 p-6 space-y-6">
+      <div className="flex-1 p-6 space-y-6 max-w-4xl">
+        {/* Editable Fields */}
+        <section className="rounded-lg border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 p-5 space-y-4">
+          <h2 className="text-sm font-semibold">Project Details</h2>
+
+          <div>
+            <label
+              htmlFor="project-name"
+              className="block text-sm font-medium mb-1.5"
+            >
+              Name
+            </label>
+            <input
+              id="project-name"
+              type="text"
+              value={name}
+              onChange={(e) => setName(e.target.value)}
+              className="w-full rounded-lg border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-900 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+            />
+          </div>
+
+          <div>
+            <label
+              htmlFor="project-description"
+              className="block text-sm font-medium mb-1.5"
+            >
+              Description
+            </label>
+            <textarea
+              id="project-description"
+              value={description}
+              onChange={(e) => setDescription(e.target.value)}
+              rows={3}
+              className="w-full rounded-lg border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-900 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+            />
+          </div>
+
+          <div className="flex items-center gap-3">
+            <button
+              onClick={handleSave}
+              disabled={!isDirty || isSaving}
+              className="rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+            >
+              {isSaving ? "Saving..." : "Save"}
+            </button>
+            {saveMessage && (
+              <span
+                className={`text-sm ${
+                  saveMessage === "Saved"
+                    ? "text-green-600 dark:text-green-400"
+                    : "text-red-600 dark:text-red-400"
+                }`}
+              >
+                {saveMessage}
+              </span>
+            )}
+          </div>
+        </section>
+
+        {/* Repository (read-only) */}
         <section className="rounded-lg border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 p-5">
           <h2 className="text-sm font-semibold mb-3">Repository</h2>
           <dl className="grid grid-cols-[auto_1fr] gap-x-4 gap-y-2 text-sm">
@@ -123,13 +269,138 @@ export default function ProjectDetail() {
               {project.repo_error}
             </p>
           )}
+
+          <p className="mt-3 text-xs text-zinc-400 dark:text-zinc-500">
+            Repository path cannot be changed. To use a different repo, create a
+            new project.
+          </p>
         </section>
 
+        {/* Test Stats */}
         {isRepoReady && (
-          <section className="rounded-lg border border-dashed border-zinc-300 dark:border-zinc-700 p-8 text-center">
-            <p className="text-sm text-zinc-500 dark:text-zinc-400">
-              Repository is ready. BDD input and test generation will be
-              available in the next development chunk.
+          <section className="rounded-lg border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 p-5">
+            <div className="flex items-center justify-between mb-4">
+              <h2 className="text-sm font-semibold">Test Suite</h2>
+              <button
+                onClick={fetchStats}
+                disabled={statsLoading}
+                className="text-xs px-3 py-1 rounded border border-zinc-300 dark:border-zinc-700 hover:bg-zinc-100 dark:hover:bg-zinc-800 disabled:opacity-50 transition-colors"
+              >
+                {statsLoading ? "Scanning..." : "Refresh"}
+              </button>
+            </div>
+
+            {statsError && (
+              <p className="text-sm text-red-600 dark:text-red-400 mb-3">
+                {statsError}
+              </p>
+            )}
+
+            {stats && (
+              <div className="space-y-4">
+                <div className="flex gap-4">
+                  <div className="rounded-lg bg-blue-50 dark:bg-blue-950 border border-blue-100 dark:border-blue-900 px-4 py-3 text-center min-w-[100px]">
+                    <p className="text-2xl font-bold text-blue-700 dark:text-blue-300">
+                      {stats.total_files}
+                    </p>
+                    <p className="text-xs text-blue-600 dark:text-blue-400">
+                      Test Files
+                    </p>
+                  </div>
+                  <div className="rounded-lg bg-zinc-50 dark:bg-zinc-800 border border-zinc-100 dark:border-zinc-700 px-4 py-3 text-center min-w-[100px]">
+                    <p className="text-2xl font-bold">
+                      {stats.frameworks.length}
+                    </p>
+                    <p className="text-xs text-zinc-500 dark:text-zinc-400">
+                      Frameworks
+                    </p>
+                  </div>
+                </div>
+
+                {stats.frameworks.length > 0 && (
+                  <div>
+                    <p className="text-xs font-medium text-zinc-500 dark:text-zinc-400 mb-1">
+                      Detected Frameworks
+                    </p>
+                    <div className="flex flex-wrap gap-1.5">
+                      {stats.frameworks.map((fw) => (
+                        <span
+                          key={fw}
+                          className="rounded-full bg-zinc-100 dark:bg-zinc-800 px-2.5 py-0.5 text-xs font-medium"
+                        >
+                          {fw}
+                        </span>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {stats.test_directories.length > 0 && (
+                  <div>
+                    <p className="text-xs font-medium text-zinc-500 dark:text-zinc-400 mb-1">
+                      Test Directories
+                    </p>
+                    <div className="flex flex-wrap gap-1.5">
+                      {stats.test_directories.map((dir) => (
+                        <span
+                          key={dir}
+                          className="rounded font-mono bg-zinc-100 dark:bg-zinc-800 px-2 py-0.5 text-xs"
+                        >
+                          {dir}
+                        </span>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {Object.keys(stats.breakdown).length > 0 && (
+                  <div>
+                    <p className="text-xs font-medium text-zinc-500 dark:text-zinc-400 mb-1">
+                      File Breakdown
+                    </p>
+                    <div className="space-y-1">
+                      {Object.entries(stats.breakdown).map(
+                        ([pattern, count]) => (
+                          <div
+                            key={pattern}
+                            className="flex justify-between text-xs"
+                          >
+                            <span className="font-mono text-zinc-600 dark:text-zinc-400">
+                              {pattern}
+                            </span>
+                            <span className="font-medium">{count}</span>
+                          </div>
+                        )
+                      )}
+                    </div>
+                  </div>
+                )}
+              </div>
+            )}
+
+            {!stats && !statsError && !statsLoading && (
+              <p className="text-sm text-zinc-400">No stats available.</p>
+            )}
+          </section>
+        )}
+
+        {/* Run Tests (stub) */}
+        {isRepoReady && (
+          <section className="rounded-lg border border-dashed border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-900 p-5">
+            <div className="flex items-center justify-between mb-2">
+              <h2 className="text-sm font-semibold">Run Tests</h2>
+              <button
+                disabled
+                title="Coming soon"
+                className="rounded-lg bg-zinc-200 dark:bg-zinc-700 px-4 py-2 text-sm font-medium text-zinc-500 dark:text-zinc-400 cursor-not-allowed"
+              >
+                Run Tests
+              </button>
+            </div>
+            <p className="text-xs text-zinc-400 dark:text-zinc-500">
+              Test execution from the tool is coming soon. The test runner will
+              execute the CLI command for the detected framework directly from
+              the repo location.
             </p>
           </section>
         )}

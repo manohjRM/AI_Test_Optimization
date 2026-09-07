@@ -6,8 +6,10 @@ import type {
   OptimizationResponse,
   Project,
   ProjectCreate,
+  ProjectUpdate,
   TestScript,
   TestScriptCreate,
+  TestStats,
 } from "@/types";
 
 const API_BASE =
@@ -48,8 +50,22 @@ export async function createProject(payload: ProjectCreate): Promise<Project> {
   });
 }
 
+export async function updateProject(
+  id: string,
+  payload: ProjectUpdate
+): Promise<Project> {
+  return request<Project>(`/projects/${id}`, {
+    method: "PATCH",
+    body: JSON.stringify(payload),
+  });
+}
+
 export async function deleteProject(id: string): Promise<void> {
   await request<void>(`/projects/${id}`, { method: "DELETE" });
+}
+
+export async function getTestStats(id: string): Promise<TestStats> {
+  return request<TestStats>(`/projects/${id}/test-stats`);
 }
 
 // Optimization

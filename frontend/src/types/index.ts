@@ -21,6 +21,18 @@ export interface ProjectCreate {
   repo_url: string;
 }
 
+export interface ProjectUpdate {
+  name?: string;
+  description?: string;
+}
+
+export interface TestStats {
+  total_files: number;
+  frameworks: string[];
+  breakdown: Record<string, number>;
+  test_directories: string[];
+}
+
 export interface OptimizationRequest {
   user_input: string;
   existing_script?: string;

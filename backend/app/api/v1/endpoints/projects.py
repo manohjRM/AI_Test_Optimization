@@ -9,9 +9,10 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.db.session import get_db
 from app.models.project import Project, RepoStatus, RepoType
-from app.schemas.project import ProjectCreate, ProjectRead
+from app.schemas.project import ProjectCreate, ProjectRead, ProjectUpdate, TestStats
 from app.services.repo_manager import (
     clone_github_repo,
+    count_test_files,
     validate_cloned_repo,
     validate_local_repo,
 )
@@ -100,6 +101,22 @@ async def get_project(
     return project
 
 
+@router.patch("/{project_id}", response_model=ProjectRead)
+async def update_project(
+    project_id: uuid.UUID,
+    payload: ProjectUpdate,
+    db: AsyncSession = Depends(get_db),
+) -> Project:
+    project = await db.get(Project, project_id)
+    if not project:
+        raise HTTPException(status_code=404, detail="Project not found")
+    for field, value in payload.model_dump(exclude_unset=True).items():
+        setattr(project, field, value)
+    await db.commit()
+    await db.refresh(project)
+    return project
+
+
 @router.delete("/{project_id}", status_code=204)
 async def delete_project(
     project_id: uuid.UUID, db: AsyncSession = Depends(get_db)
@@ -109,3 +126,29 @@ async def delete_project(
         raise HTTPException(status_code=404, detail="Project not found")
     await db.delete(project)
     await db.commit()
+
+
+@router.get("/{project_id}/test-stats", response_model=TestStats)
+async def get_test_stats(
+    project_id: uuid.UUID, db: AsyncSession = Depends(get_db)
+) -> dict:
+    project = await db.get(Project, project_id)
+    if not project:
+        raise HTTPException(status_code=404, detail="Project not found")
+
+    repo_path = project.local_path
+    if not repo_path:
+        raise HTTPException(
+            status_code=400,
+            detail="Repository is not available yet (still cloning or errored)",
+        )
+
+    from pathlib import Path
+
+    if not Path(repo_path).is_dir():
+        raise HTTPException(
+            status_code=400,
+            detail=f"Repository path no longer accessible: {repo_path}",
+        )
+
+    return count_test_files(Path(repo_path))

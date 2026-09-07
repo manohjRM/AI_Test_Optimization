@@ -35,6 +35,18 @@ class ProjectCreate(BaseModel):
         return v.strip()
 
 
+class ProjectUpdate(BaseModel):
+    name: str | None = None
+    description: str | None = None
+
+    @field_validator("name")
+    @classmethod
+    def name_not_empty(cls, v: str | None) -> str | None:
+        if v is not None and not v.strip():
+            raise ValueError("Project name cannot be empty")
+        return v.strip() if v else v
+
+
 class ProjectRead(BaseModel):
     model_config = {"from_attributes": True}
 
@@ -48,3 +60,10 @@ class ProjectRead(BaseModel):
     repo_error: str | None
     created_at: datetime
     updated_at: datetime
+
+
+class TestStats(BaseModel):
+    total_files: int
+    frameworks: list[str]
+    breakdown: dict[str, int]
+    test_directories: list[str]
