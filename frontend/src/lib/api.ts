@@ -4,11 +4,14 @@
 import type {
   OptimizationRequest,
   OptimizationResponse,
+  Project,
+  ProjectCreate,
   TestScript,
   TestScriptCreate,
 } from "@/types";
 
-const API_BASE = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000/api/v1";
+const API_BASE =
+  process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000/api/v1";
 
 async function request<T>(path: string, options?: RequestInit): Promise<T> {
   const res = await fetch(`${API_BASE}${path}`, {
@@ -24,6 +27,29 @@ async function request<T>(path: string, options?: RequestInit): Promise<T> {
   return res.json() as Promise<T>;
 }
 
+// Projects
+
+export async function listProjects(): Promise<Project[]> {
+  return request<Project[]>("/projects/");
+}
+
+export async function getProject(id: string): Promise<Project> {
+  return request<Project>(`/projects/${id}`);
+}
+
+export async function createProject(payload: ProjectCreate): Promise<Project> {
+  return request<Project>("/projects/", {
+    method: "POST",
+    body: JSON.stringify(payload),
+  });
+}
+
+export async function deleteProject(id: string): Promise<void> {
+  await request<void>(`/projects/${id}`, { method: "DELETE" });
+}
+
+// Optimization
+
 export async function optimize(
   payload: OptimizationRequest
 ): Promise<OptimizationResponse> {
@@ -32,6 +58,8 @@ export async function optimize(
     body: JSON.stringify(payload),
   });
 }
+
+// Test Scripts
 
 export async function listTestScripts(): Promise<TestScript[]> {
   return request<TestScript[]>("/test-scripts/");

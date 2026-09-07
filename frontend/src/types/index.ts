@@ -1,6 +1,26 @@
 // ABOUTME: Shared TypeScript types mirroring the backend API schemas.
 // ABOUTME: Keeps frontend/backend contracts in sync.
 
+export interface Project {
+  id: string;
+  name: string;
+  description: string | null;
+  repo_type: "local" | "github";
+  repo_url: string;
+  local_path: string | null;
+  repo_status: "pending" | "valid" | "cloning" | "cloned" | "error";
+  repo_error: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface ProjectCreate {
+  name: string;
+  description?: string;
+  repo_type: "local" | "github";
+  repo_url: string;
+}
+
 export interface OptimizationRequest {
   user_input: string;
   existing_script?: string;
