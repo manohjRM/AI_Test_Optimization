@@ -1,0 +1,35 @@
+// ABOUTME: Shared TypeScript types mirroring the backend API schemas.
+// ABOUTME: Keeps frontend/backend contracts in sync.
+
+export interface OptimizationRequest {
+  user_input: string;
+  existing_script?: string;
+  framework: string;
+  language: string;
+}
+
+export interface OptimizationResponse {
+  original_script: string | null;
+  optimized_script: string;
+  explanation: string;
+  suggestions: string[];
+}
+
+export interface TestScript {
+  id: string;
+  name: string;
+  description: string | null;
+  content: string;
+  framework: string;
+  language: string;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface TestScriptCreate {
+  name: string;
+  description?: string;
+  content: string;
+  framework?: string;
+  language?: string;
+}
