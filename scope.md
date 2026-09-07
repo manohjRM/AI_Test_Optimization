@@ -1,57 +1,151 @@
-You are an AI-powered Test Script Optimization Assistant. Your primary goal is to facilitate the development of a tool that automates and optimizes regression test script generation and modification using AI orchestration.
+# AI-Driven Regression Test Script Optimizer
 
-**THIS DOCUMENT SERVES AS THE SYSTEM PROMPT FOR ALL SUBSEQUENT INTERACTIONS AND TASKS RELATED TO THIS PROJECT.**
+This document is the project brain — scope, architecture, flow, and checklists all live here.
 
-**Project Name:** AI-Driven Regression Test Script Optimizer
+---
 
-**Project Goal:** To create a robust, scalable, and intelligent system that takes user input, orchestrates AI models to process this input, and subsequently modifies existing test scripts or generates new ones to optimize regression testing efforts. The core benefit is to reduce manual effort, improve test coverage, and accelerate the regression testing cycle.
+## Project Goal
 
-**High-Level Architecture & Technology Stack:**
+A tool that takes user input (acceptance criteria, typically in BDD format), analyzes an existing test codebase, and uses AI to generate or modify regression test scripts. The system reduces manual effort, improves coverage, and accelerates the regression testing cycle.
 
-1.  **Frontend:**
-    *   **Framework:** Next.js (with React)
-    *   **Language:** TypeScript
-    *   **Purpose:** To provide an intuitive and responsive user interface for users to input requirements, view optimization suggestions, review generated/modified test scripts, and manage test cases.
+## Tech Stack
 
-2.  **Backend:**
-    *   **Framework:** FastAPI
-    *   **Language:** Python (running with Uvicorn)
-    *   **Purpose:** To serve as the API layer, handling requests from the frontend, orchestrating AI models, managing data interactions (with the database), and exposing endpoints for test script generation/modification, AI model interaction, and system administration.
+| Layer       | Technology                          |
+|-------------|-------------------------------------|
+| Frontend    | Next.js 16 (TypeScript, Tailwind)   |
+| Backend     | FastAPI (Python 3.13, uv)           |
+| Database    | PostgreSQL + pgvector               |
+| AI          | LLM orchestration (provider TBD)    |
 
-3.  **AI Orchestration Layer (within Backend):**
-    *   **Components:** This layer will be responsible for integrating and managing various AI models (e.g., Large Language Models for understanding user input and generating code, embedding models for vector creation, etc.).
-    *   **Functionality:**
-        *   Interpreting natural language user input for test scenarios.
-        *   Analyzing existing test scripts (if provided) for optimization opportunities.
-        *   Generating new test script code based on requirements.
-        *   Modifying existing test script code.
-        *   Ensuring generated/modified scripts adhere to specified testing frameworks (e.g., Playwright, Selenium, Pytest, JUnit - to be defined later).
+## Core Flow (Milestone 1 — MVP)
 
-4.  **Database:**
-    *   **Type:** Vector Database (for document storage as vectors)
-    *   **Recommendation:** Pinecone, Weaviate, or Qdrant are strong candidates for storing test script snippets, documentation, requirements, and other relevant information as high-dimensional vectors, enabling efficient semantic search and retrieval for the AI models. This will be crucial for context-aware script generation and optimization.
-    *   **Purpose:**
-        *   Storing embeddings of test scripts, requirements, and other relevant code/documentation.
-        *   Facilitating semantic search and retrieval of relevant information for AI models.
-        *   Storing metadata associated with test cases and optimization history.
+```
+User Input
+    │
+    ├─► Option A: Paste acceptance criteria (BDD format) into text box
+    │
+    └─► Option B: Provide a JIRA / Azure DevOps ticket number
+                   → Tool fetches AC / requirements via API
+    │
+    ▼
+Provide Target Repository
+    │
+    ├─► Option A: Local repo path (already on disk)
+    │
+    └─► Option B: Git remote URL
+                   → Tool clones the repo locally
+    │
+    ▼
+AI Orchestration
+    │
+    ├─► Analyze the provided acceptance criteria
+    ├─► Scan the target repo for existing test structure, patterns, frameworks
+    └─► Generate or modify test scripts that satisfy the criteria
+    │
+    ▼
+Output
+    │
+    ├─► Display generated / modified test scripts in the UI
+    ├─► Show explanation of what was generated and why
+    └─► Allow user to copy, download, or push changes
+```
 
-**Key Features (To be developed incrementally):**
+---
 
-*   User input interface for test requirements (natural language, existing script snippets).
-*   AI-powered analysis of user input and existing test cases.
-*   Intelligent suggestion engine for test script optimizations (e.g., identifying redundant tests, suggesting reordering, optimizing assertions).
-*   Automated generation of new test scripts based on user-defined criteria.
-*   Automated modification/refactoring of existing test scripts.
-*   Version control integration for managing test script changes.
-*   Feedback mechanism for users to refine AI suggestions.
-*   Dashboard for monitoring test optimization progress and metrics.
+## Milestone 1 — MVP Checklist
 
-**Development Guidelines:**
+### 1. User Input — Acceptance Criteria
 
-*   Follow best practices for Next.js, FastAPI, and Python development (e.g., clean code, modularity, error handling, security).
-*   Prioritize scalability and performance for both frontend and backend.
-*   Ensure clear separation of concerns between frontend, backend, and AI logic.
-*   Implement robust testing strategies for all components (unit, integration, end-to-end tests).
-*   Document APIs and key architectural decisions thoroughly.
+- [ ] Text input area that accepts BDD-format acceptance criteria (Given/When/Then)
+- [ ] JIRA integration: user provides ticket number, tool fetches AC via JIRA REST API
+- [ ] Azure DevOps integration: user provides work item ID, tool fetches AC via Azure API
+- [ ] Input validation and preview before proceeding
+- [ ] Store the fetched/pasted requirements for the session
 
-This prompt will guide the subsequent development steps, focusing on specific tasks like environment setup, core feature implementation, and iterative refinement.
+### 2. Target Repository — Source Code Access
+
+- [ ] Input field for local repository path (directory picker or text input)
+- [ ] Input field for git remote URL (HTTPS or SSH)
+- [ ] Clone remote repos to a managed temp/workspace directory on the backend
+- [ ] Validate that the path/repo exists and is accessible
+- [ ] Detect test framework and language from the repo (pytest, playwright, jest, junit, etc.)
+- [ ] Scan repo structure: find existing test directories, config files, patterns
+
+### 3. AI Orchestration — Script Generation
+
+- [ ] Parse BDD acceptance criteria into structured test scenarios
+- [ ] Analyze existing test code for patterns, conventions, and reusable utilities
+- [ ] Generate new test scripts that match the repo's existing style and framework
+- [ ] Modify existing test scripts when the AC updates existing functionality
+- [ ] Validate generated code for syntax correctness
+- [ ] Provide explanation of decisions made during generation
+
+### 4. Output — Results & Actions
+
+- [ ] Display generated/modified scripts in a code viewer with syntax highlighting
+- [ ] Show diff view when modifying existing scripts
+- [ ] Copy to clipboard functionality
+- [ ] Download generated files
+- [ ] Show AI explanation and suggestions alongside the code
+
+### 5. Infrastructure & Plumbing
+
+- [ ] PostgreSQL + pgvector database setup and migrations (Alembic)
+- [ ] Backend API endpoints for the full flow (input → repo → generate → output)
+- [ ] Frontend pages and components for each step of the flow
+- [ ] Error handling and user feedback throughout the pipeline
+- [ ] Environment configuration (.env, secrets management for JIRA/Azure tokens)
+
+---
+
+## Architecture
+
+```
+┌─────────────────────────────────────────────────────┐
+│                    Frontend (Next.js)                │
+│                                                     │
+│  ┌──────────┐  ┌──────────┐  ┌───────────────────┐ │
+│  │  Input    │  │  Repo    │  │  Results Viewer   │ │
+│  │  Form     │→ │  Config  │→ │  (code + diff +   │ │
+│  │  (BDD/    │  │  (local/ │  │   explanation)    │ │
+│  │   JIRA/   │  │   git)   │  │                   │ │
+│  │   Azure)  │  │          │  │                   │ │
+│  └──────────┘  └──────────┘  └───────────────────┘ │
+└────────────────────┬────────────────────────────────┘
+                     │ HTTP (REST)
+┌────────────────────▼────────────────────────────────┐
+│                   Backend (FastAPI)                  │
+│                                                     │
+│  ┌──────────┐  ┌──────────┐  ┌───────────────────┐ │
+│  │  JIRA /  │  │  Repo    │  │  AI Orchestrator  │ │
+│  │  Azure   │  │  Manager │  │                   │ │
+│  │  Client  │  │  (clone/ │  │  - Parse BDD      │ │
+│  │          │  │   scan)  │  │  - Analyze repo   │ │
+│  └──────────┘  └──────────┘  │  - Generate code  │ │
+│                              └───────────────────┘ │
+│                                                     │
+│  ┌──────────────────────────────────────────────┐   │
+│  │           PostgreSQL + pgvector              │   │
+│  │  (requirements, scripts, embeddings, history)│   │
+│  └──────────────────────────────────────────────┘   │
+└─────────────────────────────────────────────────────┘
+```
+
+## Development Guidelines
+
+- Follow TDD — write failing tests first, then implement.
+- Keep frontend, backend, and AI logic cleanly separated.
+- API versioning under `/api/v1`.
+- All secrets (JIRA tokens, Azure PATs, LLM keys) via environment variables, never in code.
+- Commit frequently, document architectural decisions in this file.
+
+---
+
+## Decisions Log
+
+| Date       | Decision                                    | Rationale                                      |
+|------------|---------------------------------------------|------------------------------------------------|
+| 2026-09-08 | PostgreSQL + pgvector (single DB)           | Simpler ops vs separate vector DB; pgvector handles our scale |
+| 2026-09-08 | Monorepo (frontend/ + backend/)             | Simpler development workflow for a single team |
+| 2026-09-08 | Next.js 16 + FastAPI                        | User-specified tech stack                      |
+| 2026-09-08 | BDD input + JIRA/Azure as primary input modes | Matches how QA teams typically work            |
