@@ -62,8 +62,21 @@ class ProjectRead(BaseModel):
     updated_at: datetime
 
 
+class TestFile(BaseModel):
+    path: str
+    name: str
+    tests: list[str]
+
+
+class TestDirectory(BaseModel):
+    directory: str
+    files: list[TestFile]
+
+
 class TestStats(BaseModel):
     total_files: int
+    total_tests: int
     frameworks: list[str]
     breakdown: dict[str, int]
     test_directories: list[str]
+    test_tree: list[TestDirectory]

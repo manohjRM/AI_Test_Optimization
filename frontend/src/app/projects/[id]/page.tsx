@@ -12,7 +12,75 @@ import {
   deleteProject,
   getTestStats,
 } from "@/lib/api";
-import type { Project, TestStats } from "@/types";
+import type { Project, TestStats, TestDirectory, TestFile } from "@/types";
+
+
+function DirectoryNode({ dir }: { dir: TestDirectory }) {
+  const [open, setOpen] = useState(true);
+  const fileCount = dir.files.length;
+  const testCount = dir.files.reduce((sum, f) => sum + f.tests.length, 0);
+
+  return (
+    <div className="border-b border-zinc-200 dark:border-zinc-700 last:border-b-0">
+      <button
+        onClick={() => setOpen(!open)}
+        className="w-full flex items-center gap-2 px-3 py-2 text-xs hover:bg-zinc-50 dark:hover:bg-zinc-800 transition-colors"
+      >
+        <span className="text-zinc-400 select-none w-4 text-center">
+          {open ? "▼" : "▶"}
+        </span>
+        <span className="font-mono font-semibold">{dir.directory}</span>
+        <span className="ml-auto text-zinc-400">
+          {fileCount} {fileCount === 1 ? "file" : "files"}, {testCount}{" "}
+          {testCount === 1 ? "test" : "tests"}
+        </span>
+      </button>
+      {open && (
+        <div className="ml-4">
+          {dir.files.map((file) => (
+            <FileNode key={file.path} file={file} />
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+
+function FileNode({ file }: { file: TestFile }) {
+  const [open, setOpen] = useState(false);
+
+  return (
+    <div className="border-t border-zinc-100 dark:border-zinc-800">
+      <button
+        onClick={() => setOpen(!open)}
+        className="w-full flex items-center gap-2 px-3 py-1.5 text-xs hover:bg-zinc-50 dark:hover:bg-zinc-800 transition-colors"
+      >
+        <span className="text-zinc-400 select-none w-4 text-center">
+          {file.tests.length > 0 ? (open ? "▼" : "▶") : "•"}
+        </span>
+        <span className="font-mono text-zinc-700 dark:text-zinc-300">
+          {file.name}
+        </span>
+        <span className="ml-auto text-zinc-400">
+          {file.tests.length} {file.tests.length === 1 ? "test" : "tests"}
+        </span>
+      </button>
+      {open && file.tests.length > 0 && (
+        <ul className="ml-10 pb-1.5">
+          {file.tests.map((testName, i) => (
+            <li
+              key={i}
+              className="py-0.5 text-xs font-mono text-zinc-500 dark:text-zinc-400"
+            >
+              {testName}
+            </li>
+          ))}
+        </ul>
+      )}
+    </div>
+  );
+}
 
 export default function ProjectDetail() {
   const params = useParams();
@@ -276,7 +344,7 @@ export default function ProjectDetail() {
           </p>
         </section>
 
-        {/* Test Stats */}
+        {/* Test Suite — Stats + Explorer Tree */}
         {isRepoReady && (
           <section className="rounded-lg border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 p-5">
             <div className="flex items-center justify-between mb-4">
@@ -297,9 +365,10 @@ export default function ProjectDetail() {
             )}
 
             {stats && (
-              <div className="space-y-4">
+              <div className="space-y-5">
+                {/* Summary cards */}
                 <div className="flex gap-4">
-                  <div className="rounded-lg bg-blue-50 dark:bg-blue-950 border border-blue-100 dark:border-blue-900 px-4 py-3 text-center min-w-[100px]">
+                  <div className="rounded-lg bg-blue-50 dark:bg-blue-950 border border-blue-100 dark:border-blue-900 px-4 py-3 text-center min-w-24">
                     <p className="text-2xl font-bold text-blue-700 dark:text-blue-300">
                       {stats.total_files}
                     </p>
@@ -307,7 +376,15 @@ export default function ProjectDetail() {
                       Test Files
                     </p>
                   </div>
-                  <div className="rounded-lg bg-zinc-50 dark:bg-zinc-800 border border-zinc-100 dark:border-zinc-700 px-4 py-3 text-center min-w-[100px]">
+                  <div className="rounded-lg bg-green-50 dark:bg-green-950 border border-green-100 dark:border-green-900 px-4 py-3 text-center min-w-24">
+                    <p className="text-2xl font-bold text-green-700 dark:text-green-300">
+                      {stats.total_tests}
+                    </p>
+                    <p className="text-xs text-green-600 dark:text-green-400">
+                      Test Cases
+                    </p>
+                  </div>
+                  <div className="rounded-lg bg-zinc-50 dark:bg-zinc-800 border border-zinc-100 dark:border-zinc-700 px-4 py-3 text-center min-w-24">
                     <p className="text-2xl font-bold">
                       {stats.frameworks.length}
                     </p>
@@ -335,43 +412,16 @@ export default function ProjectDetail() {
                   </div>
                 )}
 
-                {stats.test_directories.length > 0 && (
+                {/* Test Explorer Tree */}
+                {stats.test_tree.length > 0 && (
                   <div>
-                    <p className="text-xs font-medium text-zinc-500 dark:text-zinc-400 mb-1">
-                      Test Directories
+                    <p className="text-xs font-medium text-zinc-500 dark:text-zinc-400 mb-2">
+                      Test Explorer
                     </p>
-                    <div className="flex flex-wrap gap-1.5">
-                      {stats.test_directories.map((dir) => (
-                        <span
-                          key={dir}
-                          className="rounded font-mono bg-zinc-100 dark:bg-zinc-800 px-2 py-0.5 text-xs"
-                        >
-                          {dir}
-                        </span>
+                    <div className="border border-zinc-200 dark:border-zinc-700 rounded-lg overflow-hidden">
+                      {stats.test_tree.map((dir) => (
+                        <DirectoryNode key={dir.directory} dir={dir} />
                       ))}
-                    </div>
-                  </div>
-                )}
-
-                {Object.keys(stats.breakdown).length > 0 && (
-                  <div>
-                    <p className="text-xs font-medium text-zinc-500 dark:text-zinc-400 mb-1">
-                      File Breakdown
-                    </p>
-                    <div className="space-y-1">
-                      {Object.entries(stats.breakdown).map(
-                        ([pattern, count]) => (
-                          <div
-                            key={pattern}
-                            className="flex justify-between text-xs"
-                          >
-                            <span className="font-mono text-zinc-600 dark:text-zinc-400">
-                              {pattern}
-                            </span>
-                            <span className="font-medium">{count}</span>
-                          </div>
-                        )
-                      )}
                     </div>
                   </div>
                 )}

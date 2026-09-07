@@ -1,7 +1,8 @@
-# ABOUTME: Validates repos, detects test automation, and clones GitHub repos.
+# ABOUTME: Validates repos, detects test automation, scans test cases, and clones GitHub repos.
 # ABOUTME: Rejects repos that lack existing test automation since the tool only optimizes existing suites.
 
 import asyncio
+import re
 from pathlib import Path
 
 from app.core.config import settings
@@ -126,28 +127,74 @@ PATTERN_FRAMEWORK_MAP: dict[str, str] = {
 }
 
 
-def count_test_files(repo_path: Path) -> dict:
-    """Count test files in a repo and return structured stats.
+_PYTHON_TEST_RE = re.compile(r"^\s*(?:async\s+)?def\s+(test_\w+)", re.MULTILINE)
+_JS_TEST_RE = re.compile(r"""\b(?:it|test)\s*\(\s*(['"`])(.+?)\1""", re.MULTILINE)
+_JS_DESCRIBE_RE = re.compile(r"""\bdescribe\s*\(\s*(['"`])(.+?)\1""", re.MULTILINE)
+_JAVA_TEST_RE = re.compile(r"@Test\b.*?\n\s*(?:public\s+)?void\s+(\w+)", re.MULTILINE)
+_GO_TEST_RE = re.compile(r"^func\s+(Test\w+)\(", re.MULTILINE)
+_CSHARP_TEST_RE = re.compile(
+    r"\[(?:Test|Fact|Theory)\]\s*\n\s*(?:public\s+)?(?:async\s+)?(?:\w+\s+)+(\w+)\s*\(",
+    re.MULTILINE,
+)
 
-    Returns a dict with total_files, frameworks, breakdown, test_directories.
+
+def _extract_test_names(file_path: Path) -> list[str]:
+    """Parse a test file and return individual test function/case names."""
+    try:
+        content = file_path.read_text(encoding="utf-8", errors="replace")
+    except OSError:
+        return []
+
+    suffix = file_path.suffix.lower()
+    names: list[str] = []
+
+    if suffix == ".py":
+        names = _PYTHON_TEST_RE.findall(content)
+    elif suffix in (".ts", ".tsx", ".js", ".jsx"):
+        describes = _JS_DESCRIBE_RE.findall(content)
+        tests = _JS_TEST_RE.findall(content)
+        for _, desc_name in describes:
+            names.append(f"[describe] {desc_name}")
+        for _, test_name in tests:
+            names.append(test_name)
+    elif suffix == ".java":
+        names = _JAVA_TEST_RE.findall(content)
+    elif suffix == ".go":
+        names = _GO_TEST_RE.findall(content)
+    elif suffix == ".cs":
+        names = _CSHARP_TEST_RE.findall(content)
+
+    return names
+
+
+def _discover_test_files(repo_path: Path) -> tuple[dict[str, int], set[str], dict[str, list[Path]]]:
+    """Walk the repo and find all test files, grouped by directory.
+
+    Returns (breakdown, test_dirs, dir_to_files) where dir_to_files maps
+    directory display names to lists of absolute file paths.
     """
     breakdown: dict[str, int] = {}
     test_dirs: set[str] = set()
     seen_files: set[Path] = set()
+    dir_to_files: dict[str, list[Path]] = {}
+
+    def _collect_from(search_dir: Path, display_name: str) -> None:
+        for pattern in TEST_FILE_PATTERNS:
+            matches = [
+                p for p in search_dir.rglob(pattern)
+                if _is_project_path(p.relative_to(repo_path))
+                and p not in seen_files
+            ]
+            if matches:
+                breakdown[pattern] = breakdown.get(pattern, 0) + len(matches)
+                seen_files.update(matches)
+                test_dirs.add(display_name)
+                dir_to_files.setdefault(display_name, []).extend(matches)
 
     for dir_name in TEST_DIRECTORIES:
         candidate = repo_path / dir_name
         if candidate.is_dir():
-            for pattern in TEST_FILE_PATTERNS:
-                matches = [
-                    p for p in candidate.rglob(pattern)
-                    if _is_project_path(p.relative_to(repo_path))
-                    and p not in seen_files
-                ]
-                if matches:
-                    breakdown[pattern] = breakdown.get(pattern, 0) + len(matches)
-                    seen_files.update(matches)
-                    test_dirs.add(dir_name + "/")
+            _collect_from(candidate, dir_name + "/")
 
     for child in repo_path.iterdir():
         if not child.is_dir():
@@ -158,17 +205,13 @@ def count_test_files(repo_path: Path) -> dict:
             continue
         if "test" not in child.name.lower():
             continue
-        for pattern in TEST_FILE_PATTERNS:
-            matches = [
-                p for p in child.rglob(pattern)
-                if _is_project_path(p.relative_to(repo_path))
-                and p not in seen_files
-            ]
-            if matches:
-                breakdown[pattern] = breakdown.get(pattern, 0) + len(matches)
-                seen_files.update(matches)
-                test_dirs.add(child.name + "/")
+        _collect_from(child, child.name + "/")
 
+    return breakdown, test_dirs, dir_to_files
+
+
+def _detect_frameworks(repo_path: Path, breakdown: dict[str, int]) -> list[str]:
+    """Detect test frameworks from config files and file patterns."""
     frameworks: set[str] = set()
     for config_name, fw_name in [
         (cfg, fw)
@@ -182,11 +225,47 @@ def count_test_files(repo_path: Path) -> dict:
         if pattern in breakdown:
             frameworks.add(fw.split("/")[0])
 
+    return sorted(frameworks)
+
+
+def count_test_files(repo_path: Path) -> dict:
+    """Scan a repo for test files, extract test names, and return structured stats.
+
+    Returns a dict with total_files, total_tests, frameworks, breakdown,
+    test_directories, and test_tree (files with their test function names
+    grouped by directory).
+    """
+    breakdown, test_dirs, dir_to_files = _discover_test_files(repo_path)
+    frameworks = _detect_frameworks(repo_path, breakdown)
+
+    test_tree: list[dict] = []
+    total_tests = 0
+
+    for dir_display in sorted(dir_to_files.keys()):
+        files_data: list[dict] = []
+        for file_path in sorted(dir_to_files[dir_display]):
+            test_names = _extract_test_names(file_path)
+            total_tests += len(test_names)
+            rel_path = str(file_path.relative_to(repo_path)).replace("\\", "/")
+            files_data.append({
+                "path": rel_path,
+                "name": file_path.name,
+                "tests": test_names,
+            })
+        test_tree.append({
+            "directory": dir_display,
+            "files": files_data,
+        })
+
+    total_files = sum(len(fd["files"]) for fd in test_tree)
+
     return {
-        "total_files": len(seen_files),
-        "frameworks": sorted(frameworks),
+        "total_files": total_files,
+        "total_tests": total_tests,
+        "frameworks": frameworks,
         "breakdown": breakdown,
         "test_directories": sorted(test_dirs),
+        "test_tree": test_tree,
     }
 
 

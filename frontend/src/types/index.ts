@@ -26,11 +26,24 @@ export interface ProjectUpdate {
   description?: string;
 }
 
+export interface TestFile {
+  path: string;
+  name: string;
+  tests: string[];
+}
+
+export interface TestDirectory {
+  directory: string;
+  files: TestFile[];
+}
+
 export interface TestStats {
   total_files: number;
+  total_tests: number;
   frameworks: string[];
   breakdown: Record<string, number>;
   test_directories: string[];
+  test_tree: TestDirectory[];
 }
 
 export interface OptimizationRequest {
