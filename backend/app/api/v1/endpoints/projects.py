@@ -10,7 +10,11 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.db.session import get_db
 from app.models.project import Project, RepoStatus, RepoType
 from app.schemas.project import ProjectCreate, ProjectRead
-from app.services.repo_manager import clone_github_repo, validate_local_repo
+from app.services.repo_manager import (
+    clone_github_repo,
+    validate_cloned_repo,
+    validate_local_repo,
+)
 
 router = APIRouter()
 
@@ -24,14 +28,21 @@ async def _clone_and_update(project_id: uuid.UUID, repo_url: str) -> None:
         if not project:
             return
 
-        success, result = await clone_github_repo(repo_url, str(project_id))
-        if success:
-            project.local_path = result
+        clone_ok, clone_result = await clone_github_repo(repo_url, str(project_id))
+        if not clone_ok:
+            project.repo_status = RepoStatus.ERROR
+            project.repo_error = clone_result
+            await db.commit()
+            return
+
+        tests_ok, tests_result = await validate_cloned_repo(clone_result)
+        if not tests_ok:
+            project.repo_status = RepoStatus.ERROR
+            project.repo_error = tests_result
+        else:
+            project.local_path = tests_result
             project.repo_status = RepoStatus.CLONED
             project.repo_error = None
-        else:
-            project.repo_status = RepoStatus.ERROR
-            project.repo_error = result
 
         await db.commit()
 
