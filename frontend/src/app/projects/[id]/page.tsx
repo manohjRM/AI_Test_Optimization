@@ -413,7 +413,7 @@ export default function ProjectDetail() {
                 )}
 
                 {/* Test Explorer Tree */}
-                {stats.test_tree.length > 0 && (
+                {stats.test_tree?.length > 0 && (
                   <div>
                     <p className="text-xs font-medium text-zinc-500 dark:text-zinc-400 mb-2">
                       Test Explorer

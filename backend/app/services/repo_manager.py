@@ -191,10 +191,17 @@ def _discover_test_files(repo_path: Path) -> tuple[dict[str, int], set[str], dic
                 test_dirs.add(display_name)
                 dir_to_files.setdefault(display_name, []).extend(matches)
 
-    for dir_name in TEST_DIRECTORIES:
-        candidate = repo_path / dir_name
-        if candidate.is_dir():
-            _collect_from(candidate, dir_name + "/")
+    search_roots = [repo_path]
+    for child in repo_path.iterdir():
+        if child.is_dir() and child.name not in EXCLUDED_DIRS and child.name not in TEST_DIRECTORIES:
+            search_roots.append(child)
+
+    for root in search_roots:
+        for dir_name in TEST_DIRECTORIES:
+            candidate = root / dir_name
+            if candidate.is_dir():
+                rel = str(candidate.relative_to(repo_path)).replace("\\", "/") + "/"
+                _collect_from(candidate, rel)
 
     for child in repo_path.iterdir():
         if not child.is_dir():
