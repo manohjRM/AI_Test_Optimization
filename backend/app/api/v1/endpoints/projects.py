@@ -2,17 +2,25 @@
 # ABOUTME: Handles project creation with repo validation/cloning, listing, and deletion.
 
 import uuid
+from pathlib import Path
 
-from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException
+from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Query
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.db.session import get_db
 from app.models.project import Project, RepoStatus, RepoType
-from app.schemas.project import ProjectCreate, ProjectRead, ProjectUpdate, TestStats
+from app.schemas.project import (
+    ProjectCreate,
+    ProjectRead,
+    ProjectUpdate,
+    RepoDirList,
+    TestStats,
+)
 from app.services.repo_manager import (
     clone_github_repo,
     count_test_files,
+    list_repo_dirs,
     validate_cloned_repo,
     validate_local_repo,
 )
@@ -143,7 +151,31 @@ async def get_test_stats(
             detail="Repository is not available yet (still cloning or errored)",
         )
 
-    from pathlib import Path
+    if not Path(repo_path).is_dir():
+        raise HTTPException(
+            status_code=400,
+            detail=f"Repository path no longer accessible: {repo_path}",
+        )
+
+    return count_test_files(Path(repo_path), test_path=project.test_path)
+
+
+@router.get("/{project_id}/repo-dirs", response_model=RepoDirList)
+async def get_repo_dirs(
+    project_id: uuid.UUID,
+    path: str = Query("", description="Relative path within the repo"),
+    db: AsyncSession = Depends(get_db),
+) -> dict:
+    project = await db.get(Project, project_id)
+    if not project:
+        raise HTTPException(status_code=404, detail="Project not found")
+
+    repo_path = project.local_path
+    if not repo_path:
+        raise HTTPException(
+            status_code=400,
+            detail="Repository is not available yet",
+        )
 
     if not Path(repo_path).is_dir():
         raise HTTPException(
@@ -151,4 +183,4 @@ async def get_test_stats(
             detail=f"Repository path no longer accessible: {repo_path}",
         )
 
-    return count_test_files(Path(repo_path))
+    return {"dirs": list_repo_dirs(Path(repo_path), path)}

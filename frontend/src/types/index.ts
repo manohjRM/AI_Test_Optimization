@@ -10,6 +10,7 @@ export interface Project {
   local_path: string | null;
   repo_status: "pending" | "valid" | "cloning" | "cloned" | "error";
   repo_error: string | null;
+  test_path: string | null;
   created_at: string;
   updated_at: string;
 }
@@ -24,6 +25,13 @@ export interface ProjectCreate {
 export interface ProjectUpdate {
   name?: string;
   description?: string;
+  test_path?: string | null;
+}
+
+export interface RepoDir {
+  name: string;
+  path: string;
+  has_children: boolean;
 }
 
 export interface TestFile {

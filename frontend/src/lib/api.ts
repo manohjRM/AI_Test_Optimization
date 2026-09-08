@@ -7,6 +7,7 @@ import type {
   Project,
   ProjectCreate,
   ProjectUpdate,
+  RepoDir,
   TestScript,
   TestScriptCreate,
   TestStats,
@@ -66,6 +67,17 @@ export async function deleteProject(id: string): Promise<void> {
 
 export async function getTestStats(id: string): Promise<TestStats> {
   return request<TestStats>(`/projects/${id}/test-stats`);
+}
+
+export async function getRepoDirs(
+  id: string,
+  path: string = ""
+): Promise<RepoDir[]> {
+  const params = path ? `?path=${encodeURIComponent(path)}` : "";
+  const result = await request<{ dirs: RepoDir[] }>(
+    `/projects/${id}/repo-dirs${params}`
+  );
+  return result.dirs;
 }
 
 // Optimization

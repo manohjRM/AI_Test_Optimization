@@ -38,6 +38,7 @@ class ProjectCreate(BaseModel):
 class ProjectUpdate(BaseModel):
     name: str | None = None
     description: str | None = None
+    test_path: str | None = None
 
     @field_validator("name")
     @classmethod
@@ -58,6 +59,7 @@ class ProjectRead(BaseModel):
     local_path: str | None
     repo_status: str
     repo_error: str | None
+    test_path: str | None
     created_at: datetime
     updated_at: datetime
 
@@ -80,3 +82,13 @@ class TestStats(BaseModel):
     breakdown: dict[str, int]
     test_directories: list[str]
     test_tree: list[TestDirectory]
+
+
+class RepoDir(BaseModel):
+    name: str
+    path: str
+    has_children: bool
+
+
+class RepoDirList(BaseModel):
+    dirs: list[RepoDir]

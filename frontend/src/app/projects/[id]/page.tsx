@@ -11,8 +11,9 @@ import {
   updateProject,
   deleteProject,
   getTestStats,
+  getRepoDirs,
 } from "@/lib/api";
-import type { Project, TestStats, TestDirectory, TestFile } from "@/types";
+import type { Project, TestStats, TestDirectory, TestFile, RepoDir } from "@/types";
 
 
 function DirectoryNode({ dir }: { dir: TestDirectory }) {
@@ -81,6 +82,115 @@ function FileNode({ file }: { file: TestFile }) {
     </div>
   );
 }
+
+function RepoDirBrowserNode({
+  dir,
+  projectId,
+  onSelect,
+}: {
+  dir: RepoDir;
+  projectId: string;
+  onSelect: (path: string) => void;
+}) {
+  const [open, setOpen] = useState(false);
+  const [children, setChildren] = useState<RepoDir[] | null>(null);
+  const [loading, setLoading] = useState(false);
+
+  async function handleToggle() {
+    if (!dir.has_children) return;
+    if (!open && children === null) {
+      setLoading(true);
+      try {
+        const dirs = await getRepoDirs(projectId, dir.path);
+        setChildren(dirs);
+      } catch {
+        setChildren([]);
+      } finally {
+        setLoading(false);
+      }
+    }
+    setOpen(!open);
+  }
+
+  return (
+    <div>
+      <div className="flex items-center gap-1 py-1 px-2 hover:bg-zinc-50 dark:hover:bg-zinc-800 rounded text-xs">
+        <button
+          onClick={handleToggle}
+          className="text-zinc-400 select-none w-4 text-center shrink-0"
+        >
+          {dir.has_children
+            ? loading
+              ? "..."
+              : open
+                ? "▼"
+                : "▶"
+            : ""}
+        </button>
+        <span className="font-mono truncate">{dir.name}/</span>
+        <button
+          onClick={() => onSelect(dir.path)}
+          className="ml-auto shrink-0 text-blue-600 dark:text-blue-400 hover:underline text-xs"
+        >
+          Select
+        </button>
+      </div>
+      {open && children && children.length > 0 && (
+        <div className="ml-4">
+          {children.map((child) => (
+            <RepoDirBrowserNode
+              key={child.path}
+              dir={child}
+              projectId={projectId}
+              onSelect={onSelect}
+            />
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+
+function RepoDirBrowser({
+  projectId,
+  onSelect,
+}: {
+  projectId: string;
+  onSelect: (path: string) => void;
+}) {
+  const [roots, setRoots] = useState<RepoDir[] | null>(null);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    getRepoDirs(projectId)
+      .then(setRoots)
+      .catch(() => setRoots([]))
+      .finally(() => setLoading(false));
+  }, [projectId]);
+
+  if (loading) {
+    return <p className="text-xs text-zinc-400 py-2">Loading directories...</p>;
+  }
+
+  if (!roots || roots.length === 0) {
+    return <p className="text-xs text-zinc-400 py-2">No directories found.</p>;
+  }
+
+  return (
+    <div className="border border-zinc-200 dark:border-zinc-700 rounded-lg p-2 max-h-64 overflow-y-auto">
+      {roots.map((dir) => (
+        <RepoDirBrowserNode
+          key={dir.path}
+          dir={dir}
+          projectId={projectId}
+          onSelect={onSelect}
+        />
+      ))}
+    </div>
+  );
+}
+
 
 export default function ProjectDetail() {
   const params = useParams();
@@ -167,6 +277,32 @@ export default function ProjectDetail() {
       );
     } finally {
       setIsSaving(false);
+    }
+  }
+
+  async function handleSetTestPath(path: string) {
+    try {
+      const updated = await updateProject(projectId, { test_path: path });
+      setProject(updated);
+      setStats(null);
+      fetchStats();
+    } catch (err) {
+      setStatsError(
+        err instanceof Error ? err.message : "Failed to set test path"
+      );
+    }
+  }
+
+  async function handleClearTestPath() {
+    try {
+      const updated = await updateProject(projectId, { test_path: null });
+      setProject(updated);
+      setStats(null);
+      fetchStats();
+    } catch (err) {
+      setStatsError(
+        err instanceof Error ? err.message : "Failed to clear test path"
+      );
     }
   }
 
@@ -358,10 +494,41 @@ export default function ProjectDetail() {
               </button>
             </div>
 
+            {project.test_path && (
+              <div className="flex items-center gap-2 mb-4 text-xs">
+                <span className="text-zinc-500 dark:text-zinc-400">
+                  Test path:
+                </span>
+                <span className="inline-flex items-center gap-1 rounded bg-blue-50 dark:bg-blue-950 border border-blue-200 dark:border-blue-800 px-2 py-0.5 font-mono text-blue-700 dark:text-blue-300">
+                  {project.test_path}
+                  <button
+                    onClick={handleClearTestPath}
+                    className="ml-1 text-blue-400 hover:text-blue-600 dark:hover:text-blue-200"
+                    title="Clear test path (revert to auto-detection)"
+                  >
+                    x
+                  </button>
+                </span>
+              </div>
+            )}
+
             {statsError && (
               <p className="text-sm text-red-600 dark:text-red-400 mb-3">
                 {statsError}
               </p>
+            )}
+
+            {stats && stats.total_files === 0 && !project.test_path && (
+              <div className="space-y-3 mb-4">
+                <p className="text-sm text-zinc-500 dark:text-zinc-400">
+                  No tests detected automatically. Select the directory
+                  containing your test files:
+                </p>
+                <RepoDirBrowser
+                  projectId={projectId}
+                  onSelect={handleSetTestPath}
+                />
+              </div>
             )}
 
             {stats && (
