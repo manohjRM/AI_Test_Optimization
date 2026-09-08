@@ -17,7 +17,7 @@ TEST_CONFIG_FILES = [
     "jest.config.js", "jest.config.ts", "jest.config.mjs", "jest.config.cjs",
     "vitest.config.js", "vitest.config.ts", "vitest.config.mjs",
     "playwright.config.js", "playwright.config.ts",
-    "cypress.config.js", "cypress.config.ts",
+    "cypress.config.js", "cypress.config.ts", "cypress.config.cjs", "cypress.config.mjs",
     ".mocharc.yml", ".mocharc.json", ".mocharc.js",
     "karma.conf.js",
     "phpunit.xml", "phpunit.xml.dist",
@@ -103,7 +103,7 @@ FRAMEWORK_INDICATORS: dict[str, list[str]] = {
     "jest": ["jest.config.js", "jest.config.ts", "jest.config.mjs", "jest.config.cjs"],
     "vitest": ["vitest.config.js", "vitest.config.ts", "vitest.config.mjs"],
     "playwright": ["playwright.config.js", "playwright.config.ts"],
-    "cypress": ["cypress.config.js", "cypress.config.ts"],
+    "cypress": ["cypress.config.js", "cypress.config.ts", "cypress.config.cjs", "cypress.config.mjs"],
     "mocha": [".mocharc.yml", ".mocharc.json", ".mocharc.js"],
     "karma": ["karma.conf.js"],
     "phpunit": ["phpunit.xml", "phpunit.xml.dist"],
@@ -153,7 +153,7 @@ def _resolve_test_dir_from_config(repo_path: Path) -> list[Path]:
                 pass
             break
 
-    for config_name in ["cypress.config.ts", "cypress.config.js"]:
+    for config_name in ["cypress.config.ts", "cypress.config.js", "cypress.config.cjs", "cypress.config.mjs"]:
         config_file = repo_path / config_name
         if config_file.is_file():
             try:
