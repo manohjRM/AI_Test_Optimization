@@ -3,128 +3,212 @@
 
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { createProject, listSystemDirs } from "@/lib/api";
 import type { ProjectCreate, SystemDir } from "@/types";
 
 
-function FolderBrowserNode({
-  dir,
-  onSelect,
-}: {
-  dir: SystemDir;
-  onSelect: (path: string) => void;
-}) {
-  const [open, setOpen] = useState(false);
-  const [children, setChildren] = useState<SystemDir[] | null>(null);
-  const [loading, setLoading] = useState(false);
-
-  async function handleToggle() {
-    if (!dir.has_children) return;
-    if (!open && children === null) {
-      setLoading(true);
-      try {
-        const result = await listSystemDirs(dir.path);
-        setChildren(result.dirs);
-      } catch {
-        setChildren([]);
-      } finally {
-        setLoading(false);
-      }
-    }
-    setOpen(!open);
-  }
-
-  return (
-    <div>
-      <div className="flex items-center gap-1 py-1 px-2 hover:bg-zinc-50 dark:hover:bg-zinc-800 rounded text-xs">
-        <button
-          type="button"
-          onClick={handleToggle}
-          className="text-zinc-400 select-none w-4 text-center shrink-0"
-        >
-          {dir.has_children
-            ? loading
-              ? "..."
-              : open
-                ? "▼"
-                : "▶"
-            : ""}
-        </button>
-        <span className="font-mono truncate">{dir.name}</span>
-        <button
-          type="button"
-          onClick={() => onSelect(dir.path)}
-          className="ml-auto shrink-0 text-blue-600 dark:text-blue-400 hover:underline text-xs"
-        >
-          Select
-        </button>
-      </div>
-      {open && children && children.length > 0 && (
-        <div className="ml-4">
-          {children.map((child) => (
-            <FolderBrowserNode
-              key={child.path}
-              dir={child}
-              onSelect={onSelect}
-            />
-          ))}
-        </div>
-      )}
-    </div>
-  );
-}
-
-
-function FolderBrowser({
+function FolderPickerModal({
   onSelect,
   onClose,
 }: {
   onSelect: (path: string) => void;
   onClose: () => void;
 }) {
-  const [roots, setRoots] = useState<SystemDir[] | null>(null);
+  const [currentPath, setCurrentPath] = useState("");
+  const [parentPath, setParentPath] = useState<string | null>(null);
+  const [dirs, setDirs] = useState<SystemDir[]>([]);
   const [loading, setLoading] = useState(true);
+  const [pathInput, setPathInput] = useState("");
+  const [error, setError] = useState<string | null>(null);
 
-  useEffect(() => {
-    listSystemDirs()
-      .then((result) => setRoots(result.dirs))
-      .catch(() => setRoots([]))
-      .finally(() => setLoading(false));
+  const navigate = useCallback(async (path: string) => {
+    setLoading(true);
+    setError(null);
+    try {
+      const result = await listSystemDirs(path);
+      setDirs(result.dirs);
+      setCurrentPath(result.current_path);
+      setParentPath(result.parent_path);
+      setPathInput(result.current_path);
+    } catch {
+      setError("Failed to load directory");
+      setDirs([]);
+    } finally {
+      setLoading(false);
+    }
   }, []);
 
+  useEffect(() => {
+    navigate("");
+  }, [navigate]);
+
+  function handlePathSubmit(e: React.FormEvent) {
+    e.preventDefault();
+    if (pathInput.trim()) {
+      navigate(pathInput.trim());
+    }
+  }
+
+  const breadcrumbs = currentPath
+    ? currentPath.split(/[/\\]/).filter(Boolean)
+    : [];
+
   return (
-    <div className="border border-zinc-200 dark:border-zinc-700 rounded-lg overflow-hidden">
-      <div className="flex items-center justify-between px-3 py-2 bg-zinc-50 dark:bg-zinc-800 border-b border-zinc-200 dark:border-zinc-700">
-        <span className="text-xs font-medium">Select Repository Folder</span>
-        <button
-          type="button"
-          onClick={onClose}
-          className="text-xs text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-300"
+    <div className="fixed inset-0 z-50 flex items-center justify-center">
+      <div
+        className="absolute inset-0 bg-black/40"
+        onClick={onClose}
+      />
+      <div className="relative bg-white dark:bg-zinc-900 rounded-xl shadow-2xl border border-zinc-200 dark:border-zinc-700 w-full max-w-xl max-h-[80vh] flex flex-col">
+        {/* Header */}
+        <div className="flex items-center justify-between px-4 py-3 border-b border-zinc-200 dark:border-zinc-700">
+          <h3 className="text-sm font-semibold">Select Repository Folder</h3>
+          <button
+            type="button"
+            onClick={onClose}
+            className="text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-300 text-lg leading-none"
+          >
+            x
+          </button>
+        </div>
+
+        {/* Path bar */}
+        <form
+          onSubmit={handlePathSubmit}
+          className="flex gap-2 px-4 py-2 border-b border-zinc-200 dark:border-zinc-700 bg-zinc-50 dark:bg-zinc-800"
         >
-          Close
-        </button>
-      </div>
-      <div className="p-2 max-h-72 overflow-y-auto">
-        {loading && (
-          <p className="text-xs text-zinc-400 py-2">Loading...</p>
-        )}
-        {roots && roots.length === 0 && (
-          <p className="text-xs text-zinc-400 py-2">No directories found.</p>
-        )}
-        {roots &&
-          roots.map((dir) => (
-            <FolderBrowserNode
-              key={dir.path}
-              dir={dir}
-              onSelect={(path) => {
-                onSelect(path);
+          <input
+            type="text"
+            value={pathInput}
+            onChange={(e) => setPathInput(e.target.value)}
+            placeholder="Type a path and press Enter..."
+            className="flex-1 rounded border border-zinc-300 dark:border-zinc-600 bg-white dark:bg-zinc-900 px-2.5 py-1.5 text-xs font-mono focus:outline-none focus:ring-2 focus:ring-blue-500"
+          />
+          <button
+            type="submit"
+            className="shrink-0 rounded border border-zinc-300 dark:border-zinc-600 px-3 py-1.5 text-xs font-medium hover:bg-zinc-100 dark:hover:bg-zinc-700 transition-colors"
+          >
+            Go
+          </button>
+        </form>
+
+        {/* Breadcrumbs */}
+        <div className="flex items-center gap-1 px-4 py-2 text-xs overflow-x-auto flex-shrink-0">
+          <button
+            type="button"
+            onClick={() => navigate("")}
+            className="shrink-0 text-blue-600 dark:text-blue-400 hover:underline"
+          >
+            Root
+          </button>
+          {breadcrumbs.map((segment, i) => {
+            const pathUpTo = breadcrumbs
+              .slice(0, i + 1)
+              .join("\\");
+            const fullPath =
+              currentPath.includes(":\\")
+                ? pathUpTo.length <= 2
+                  ? pathUpTo + "\\"
+                  : pathUpTo
+                : "/" + pathUpTo;
+            return (
+              <span key={i} className="flex items-center gap-1">
+                <span className="text-zinc-400">/</span>
+                <button
+                  type="button"
+                  onClick={() => navigate(fullPath)}
+                  className="shrink-0 text-blue-600 dark:text-blue-400 hover:underline truncate max-w-32"
+                >
+                  {segment}
+                </button>
+              </span>
+            );
+          })}
+        </div>
+
+        {/* Directory list */}
+        <div className="flex-1 overflow-y-auto px-2 py-1 min-h-48">
+          {loading && (
+            <p className="text-xs text-zinc-400 text-center py-8">
+              Loading...
+            </p>
+          )}
+
+          {error && (
+            <p className="text-xs text-red-500 text-center py-4">{error}</p>
+          )}
+
+          {!loading && !error && (
+            <>
+              {parentPath !== null && (
+                <button
+                  type="button"
+                  onClick={() => navigate(parentPath)}
+                  className="w-full flex items-center gap-2 px-3 py-2 text-xs hover:bg-zinc-100 dark:hover:bg-zinc-800 rounded transition-colors"
+                >
+                  <span className="text-zinc-400">..</span>
+                  <span className="text-zinc-500 dark:text-zinc-400">
+                    Up one level
+                  </span>
+                </button>
+              )}
+              {dirs.length === 0 && (
+                <p className="text-xs text-zinc-400 text-center py-4">
+                  No subdirectories
+                </p>
+              )}
+              {dirs.map((dir) => (
+                <button
+                  key={dir.path}
+                  type="button"
+                  onClick={() => navigate(dir.path)}
+                  onDoubleClick={() => {
+                    onSelect(dir.path);
+                    onClose();
+                  }}
+                  className="w-full flex items-center gap-2 px-3 py-2 text-xs hover:bg-zinc-100 dark:hover:bg-zinc-800 rounded transition-colors group"
+                >
+                  <span className="text-zinc-400 shrink-0">
+                    {dir.has_children ? "▶" : ""}
+                  </span>
+                  <span className="font-mono truncate text-left">
+                    {dir.name}
+                  </span>
+                </button>
+              ))}
+            </>
+          )}
+        </div>
+
+        {/* Footer */}
+        <div className="flex items-center justify-between gap-3 px-4 py-3 border-t border-zinc-200 dark:border-zinc-700 bg-zinc-50 dark:bg-zinc-800">
+          <p className="text-xs text-zinc-400 truncate font-mono">
+            {currentPath || "Select a folder"}
+          </p>
+          <div className="flex gap-2 shrink-0">
+            <button
+              type="button"
+              onClick={onClose}
+              className="rounded border border-zinc-300 dark:border-zinc-600 px-4 py-1.5 text-xs font-medium hover:bg-zinc-100 dark:hover:bg-zinc-700 transition-colors"
+            >
+              Cancel
+            </button>
+            <button
+              type="button"
+              disabled={!currentPath}
+              onClick={() => {
+                onSelect(currentPath);
                 onClose();
               }}
-            />
-          ))}
+              className="rounded bg-blue-600 px-4 py-1.5 text-xs font-medium text-white hover:bg-blue-700 disabled:opacity-50 transition-colors"
+            >
+              Select This Folder
+            </button>
+          </div>
+        </div>
       </div>
     </div>
   );
@@ -230,7 +314,6 @@ export default function NewProject() {
                 onClick={() => {
                   setRepoType("local");
                   setRepoUrl("");
-                  setShowBrowser(false);
                 }}
                 className={`flex-1 rounded-lg border px-4 py-2.5 text-sm font-medium transition-colors ${
                   repoType === "local"
@@ -245,7 +328,6 @@ export default function NewProject() {
                 onClick={() => {
                   setRepoType("github");
                   setRepoUrl("");
-                  setShowBrowser(false);
                 }}
                 className={`flex-1 rounded-lg border px-4 py-2.5 text-sm font-medium transition-colors ${
                   repoType === "github"
@@ -284,12 +366,8 @@ export default function NewProject() {
                 {repoType === "local" && (
                   <button
                     type="button"
-                    onClick={() => setShowBrowser(!showBrowser)}
-                    className={`shrink-0 rounded-lg border px-3 py-2 text-sm font-medium transition-colors ${
-                      showBrowser
-                        ? "border-blue-500 bg-blue-50 text-blue-700 dark:bg-blue-950 dark:text-blue-300"
-                        : "border-zinc-300 dark:border-zinc-700 hover:bg-zinc-50 dark:hover:bg-zinc-800"
-                    }`}
+                    onClick={() => setShowBrowser(true)}
+                    className="shrink-0 rounded-lg border border-zinc-300 dark:border-zinc-700 px-3 py-2 text-sm font-medium hover:bg-zinc-50 dark:hover:bg-zinc-800 transition-colors"
                   >
                     Browse
                   </button>
@@ -301,15 +379,6 @@ export default function NewProject() {
                   : "The repo will be cloned to the server. Use HTTPS URL for public repos."}
               </p>
             </div>
-
-            {showBrowser && repoType === "local" && (
-              <div className="mt-3">
-                <FolderBrowser
-                  onSelect={(path) => setRepoUrl(path)}
-                  onClose={() => setShowBrowser(false)}
-                />
-              </div>
-            )}
           </div>
 
           <div className="flex gap-3 pt-2">
@@ -329,6 +398,13 @@ export default function NewProject() {
           </div>
         </form>
       </div>
+
+      {showBrowser && (
+        <FolderPickerModal
+          onSelect={(path) => setRepoUrl(path)}
+          onClose={() => setShowBrowser(false)}
+        />
+      )}
     </main>
   );
 }
