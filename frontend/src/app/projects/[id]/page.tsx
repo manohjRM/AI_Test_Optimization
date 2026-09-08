@@ -435,7 +435,11 @@ export default function ProjectDetail() {
         </button>
       </header>
 
-      <div className="flex-1 p-6 space-y-6 max-w-4xl">
+      <div className="flex-1 p-6">
+        <div className="grid grid-cols-1 xl:grid-cols-2 gap-6">
+
+        {/* Left Column: Project info + Repo + Test Suite */}
+        <div className="space-y-6">
         {/* Editable Fields */}
         <section className="rounded-lg border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 p-5 space-y-4">
           <h2 className="text-sm font-semibold">Project Details</h2>
@@ -664,6 +668,10 @@ export default function ProjectDetail() {
           </section>
         )}
 
+        </div>{/* End left column */}
+
+        {/* Right Column: AC input + Analysis Results + Run Tests */}
+        <div className="space-y-6">
         {/* Acceptance Criteria */}
         {isRepoReady && (
           <section className="rounded-lg border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 p-5">
@@ -853,6 +861,9 @@ export default function ProjectDetail() {
             </p>
           </section>
         )}
+        </div>{/* End right column */}
+
+        </div>{/* End grid */}
       </div>
     </main>
   );
