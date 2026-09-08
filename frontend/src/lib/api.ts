@@ -2,6 +2,8 @@
 // ABOUTME: All backend calls route through this module.
 
 import type {
+  ACCreate,
+  ACRead,
   ConnectionTestRequest,
   ConnectionTestResult,
   OptimizationRequest,
@@ -68,6 +70,31 @@ export async function updateProject(
 
 export async function deleteProject(id: string): Promise<void> {
   await request<void>(`/projects/${id}`, { method: "DELETE" });
+}
+
+// Acceptance Criteria
+
+export async function createAC(
+  projectId: string,
+  payload: ACCreate
+): Promise<ACRead> {
+  return request<ACRead>(`/projects/${projectId}/acceptance-criteria`, {
+    method: "POST",
+    body: JSON.stringify(payload),
+  });
+}
+
+export async function listACs(projectId: string): Promise<ACRead[]> {
+  return request<ACRead[]>(`/projects/${projectId}/acceptance-criteria`);
+}
+
+export async function deleteAC(
+  projectId: string,
+  acId: string
+): Promise<void> {
+  await request<void>(`/projects/${projectId}/acceptance-criteria/${acId}`, {
+    method: "DELETE",
+  });
 }
 
 export async function getTestStats(id: string): Promise<TestStats> {

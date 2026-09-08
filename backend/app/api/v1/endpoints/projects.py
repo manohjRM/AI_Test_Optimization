@@ -9,7 +9,9 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.db.session import get_db
+from app.models.acceptance_criteria import AcceptanceCriteria
 from app.models.project import Project, RepoStatus, RepoType
+from app.schemas.acceptance_criteria import ACCreate, ACRead
 from app.schemas.project import (
     ProjectCreate,
     ProjectRead,
@@ -193,3 +195,51 @@ async def get_repo_dirs(
         )
 
     return {"dirs": list_repo_dirs(Path(repo_path), path)}
+
+
+# Acceptance Criteria
+
+@router.post("/{project_id}/acceptance-criteria", response_model=ACRead, status_code=201)
+async def create_acceptance_criteria(
+    project_id: uuid.UUID,
+    payload: ACCreate,
+    db: AsyncSession = Depends(get_db),
+) -> AcceptanceCriteria:
+    project = await db.get(Project, project_id)
+    if not project:
+        raise HTTPException(status_code=404, detail="Project not found")
+
+    ac = AcceptanceCriteria(project_id=project_id, content=payload.content)
+    db.add(ac)
+    await db.commit()
+    await db.refresh(ac)
+    return ac
+
+
+@router.get("/{project_id}/acceptance-criteria", response_model=list[ACRead])
+async def list_acceptance_criteria(
+    project_id: uuid.UUID, db: AsyncSession = Depends(get_db)
+) -> list[AcceptanceCriteria]:
+    project = await db.get(Project, project_id)
+    if not project:
+        raise HTTPException(status_code=404, detail="Project not found")
+
+    result = await db.execute(
+        select(AcceptanceCriteria)
+        .where(AcceptanceCriteria.project_id == project_id)
+        .order_by(AcceptanceCriteria.created_at.desc())
+    )
+    return list(result.scalars().all())
+
+
+@router.delete("/{project_id}/acceptance-criteria/{ac_id}", status_code=204)
+async def delete_acceptance_criteria(
+    project_id: uuid.UUID,
+    ac_id: uuid.UUID,
+    db: AsyncSession = Depends(get_db),
+) -> None:
+    ac = await db.get(AcceptanceCriteria, ac_id)
+    if not ac or ac.project_id != project_id:
+        raise HTTPException(status_code=404, detail="Acceptance criteria not found")
+    await db.delete(ac)
+    await db.commit()

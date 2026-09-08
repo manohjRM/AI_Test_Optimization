@@ -12,8 +12,11 @@ import {
   deleteProject,
   getTestStats,
   getRepoDirs,
+  createAC,
+  listACs,
+  deleteAC,
 } from "@/lib/api";
-import type { Project, TestStats, TestDirectory, TestFile, RepoDir } from "@/types";
+import type { Project, TestStats, TestDirectory, TestFile, RepoDir, ACRead } from "@/types";
 
 
 function DirectoryNode({ dir }: { dir: TestDirectory }) {
@@ -212,13 +215,23 @@ export default function ProjectDetail() {
   const [statsLoading, setStatsLoading] = useState(false);
   const [statsError, setStatsError] = useState<string | null>(null);
 
+  // Acceptance criteria
+  const [acs, setAcs] = useState<ACRead[]>([]);
+  const [acInput, setAcInput] = useState("");
+  const [acSaving, setAcSaving] = useState(false);
+  const [acError, setAcError] = useState<string | null>(null);
+
   useEffect(() => {
     async function fetch() {
       try {
-        const data = await getProject(projectId);
+        const [data, acList] = await Promise.all([
+          getProject(projectId),
+          listACs(projectId),
+        ]);
         setProject(data);
         setName(data.name);
         setDescription(data.description ?? "");
+        setAcs(acList);
       } catch (err) {
         setError(
           err instanceof Error ? err.message : "Failed to load project"
@@ -302,6 +315,34 @@ export default function ProjectDetail() {
     } catch (err) {
       setStatsError(
         err instanceof Error ? err.message : "Failed to clear test path"
+      );
+    }
+  }
+
+  async function handleSaveAC() {
+    if (!acInput.trim()) return;
+    setAcSaving(true);
+    setAcError(null);
+    try {
+      const ac = await createAC(projectId, { content: acInput.trim() });
+      setAcs((prev) => [ac, ...prev]);
+      setAcInput("");
+    } catch (err) {
+      setAcError(
+        err instanceof Error ? err.message : "Failed to save acceptance criteria"
+      );
+    } finally {
+      setAcSaving(false);
+    }
+  }
+
+  async function handleDeleteAC(acId: string) {
+    try {
+      await deleteAC(projectId, acId);
+      setAcs((prev) => prev.filter((a) => a.id !== acId));
+    } catch (err) {
+      setAcError(
+        err instanceof Error ? err.message : "Failed to delete"
       );
     }
   }
@@ -597,6 +638,75 @@ export default function ProjectDetail() {
 
             {!stats && !statsError && !statsLoading && (
               <p className="text-sm text-zinc-400">No stats available.</p>
+            )}
+          </section>
+        )}
+
+        {/* Acceptance Criteria */}
+        {isRepoReady && (
+          <section className="rounded-lg border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 p-5">
+            <h2 className="text-sm font-semibold mb-4">Acceptance Criteria</h2>
+
+            <div className="space-y-3 mb-4">
+              <textarea
+                value={acInput}
+                onChange={(e) => setAcInput(e.target.value)}
+                placeholder={"Given a user is on the login page\nWhen they enter valid credentials\nThen they should be redirected to the dashboard"}
+                rows={5}
+                className="w-full rounded-lg border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-900 px-3 py-2 text-sm font-mono focus:outline-none focus:ring-2 focus:ring-blue-500"
+              />
+              <div className="flex items-center gap-3">
+                <button
+                  onClick={handleSaveAC}
+                  disabled={acSaving || !acInput.trim()}
+                  className="rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                >
+                  {acSaving ? "Saving..." : "Save Criteria"}
+                </button>
+                {acError && (
+                  <span className="text-xs text-red-600 dark:text-red-400">
+                    {acError}
+                  </span>
+                )}
+              </div>
+            </div>
+
+            {acs.length > 0 && (
+              <div className="space-y-3">
+                <p className="text-xs font-medium text-zinc-500 dark:text-zinc-400">
+                  Saved Criteria ({acs.length})
+                </p>
+                {acs.map((ac) => (
+                  <div
+                    key={ac.id}
+                    className="rounded-lg border border-zinc-200 dark:border-zinc-700 p-3"
+                  >
+                    <div className="flex items-start justify-between gap-3">
+                      <pre className="flex-1 text-xs font-mono whitespace-pre-wrap text-zinc-700 dark:text-zinc-300">
+                        {ac.content}
+                      </pre>
+                      <div className="flex gap-2 shrink-0">
+                        <button
+                          disabled
+                          title="Coming next — AI analysis"
+                          className="rounded border border-zinc-300 dark:border-zinc-700 px-3 py-1 text-xs font-medium text-zinc-400 cursor-not-allowed"
+                        >
+                          Analyze
+                        </button>
+                        <button
+                          onClick={() => handleDeleteAC(ac.id)}
+                          className="rounded border border-red-200 dark:border-red-800 px-2 py-1 text-xs text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-950 transition-colors"
+                        >
+                          Delete
+                        </button>
+                      </div>
+                    </div>
+                    <p className="text-xs text-zinc-400 mt-2">
+                      {new Date(ac.created_at).toLocaleString()}
+                    </p>
+                  </div>
+                ))}
+              </div>
             )}
           </section>
         )}

@@ -106,6 +106,18 @@ export interface ConnectionTestResult {
   model_used: string | null;
 }
 
+export interface ACCreate {
+  content: string;
+}
+
+export interface ACRead {
+  id: string;
+  project_id: string;
+  content: string;
+  created_at: string;
+  updated_at: string;
+}
+
 export interface TestScript {
   id: string;
   name: string;
