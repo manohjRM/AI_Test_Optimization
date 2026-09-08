@@ -1,6 +1,6 @@
 # AI-Driven Regression Test Script Optimizer
 
-This document is the project brain — scope, architecture, flow, and checklists all live here.
+This document is the project brain — scope, architecture, flow, checklists, and decisions. It serves as the system prompt for all planning, development, and modification tasks.
 
 ---
 
@@ -8,197 +8,270 @@ This document is the project brain — scope, architecture, flow, and checklists
 
 A tool that takes user input (acceptance criteria, typically in BDD format), analyzes an existing test codebase, and uses AI to generate or modify regression test scripts. The system reduces manual effort, improves coverage, and accelerates the regression testing cycle.
 
+**This tool is for existing projects with test automation only.** It does not create test automation from scratch — it optimizes, extends, and generates tests within repos that already have a test framework set up.
+
 ## Tech Stack
 
-| Layer       | Technology                          |
-|-------------|-------------------------------------|
-| Frontend    | Next.js 16 (TypeScript, Tailwind)   |
-| Backend     | FastAPI (Python 3.13, uv)           |
-| Database    | PostgreSQL + pgvector               |
-| AI          | LLM orchestration (provider TBD)    |
+| Layer           | Technology                                        |
+|-----------------|---------------------------------------------------|
+| Frontend        | Next.js 16 (TypeScript, Tailwind CSS)             |
+| Backend         | FastAPI (Python 3.13, uv)                         |
+| Database        | PostgreSQL + pgvector                              |
+| AI Orchestration| LangGraph + LangChain (provider-configurable)     |
+| LLM Providers   | Anthropic Claude / OpenAI GPT (user-configurable) |
 
-## Core Flow (Milestone 1 — MVP)
+## Core Flow
 
 ```
 Dashboard (landing page)
     │
-    │  List of existing projects
+    │  List of projects + Settings icon (LLM config)
     │  [Create Project] button
     │
     ▼
 Create Project
     │
     ├─► Project name + description
-    └─► Repository (MANDATORY — pick one):
-        ├─► Option A: Local repo path (already on disk)
-        └─► Option B: GitHub repo URL → tool clones it locally
+    └─► Repository (MANDATORY):
+        ├─► Local path (Browse button with folder picker modal)
+        └─► GitHub URL → tool clones it locally
+    │
+    │  Validation: must have test automation (test dirs, config files, test files)
+    │  If no .git: prompt user → run git init if accepted
     │
     ▼
 Project Detail (inside a project)
     │
-    ├─► Provide acceptance criteria:
-    │   ├─► Option A: Paste BDD (Given/When/Then) in text box
-    │   └─► Option B: JIRA / Azure DevOps ticket number → fetch AC
+    ├─► Edit name/description (repo path is read-only)
+    ├─► Test Suite: auto-detected test stats + explorer tree
+    │   ├─► Config-driven detection (reads playwright.config, jest.config, etc.)
+    │   ├─► Manual test path override via directory browser if auto-detection fails
+    │   └─► Shows: file count, test count, frameworks, file→function tree
+    │
+    ├─► Acceptance Criteria input:
+    │   ├─► Paste BDD (Given/When/Then) in text box
+    │   └─► (Future) JIRA / Azure DevOps ticket number → fetch AC
     │
     ▼
-AI Orchestration
+AI Analysis (LangGraph workflow)
     │
-    ├─► Analyze the provided acceptance criteria
-    ├─► Scan the target repo for existing test structure, patterns, frameworks
-    └─► Generate or modify test scripts that satisfy the criteria
+    ├─► Parse BDD acceptance criteria into scenarios
+    ├─► Build context from repo test tree + relevant test file contents
+    ├─► Invoke LLM to match AC against existing tests
+    └─► Return related tests grouped by relevance (direct/partial/related)
     │
     ▼
 Output
     │
-    ├─► Display generated / modified test scripts in the UI
-    ├─► Show explanation of what was generated and why
-    └─► Allow user to copy, download, or push changes
+    ├─► Display matched tests with explanations
+    ├─► (Future) Generate or modify test scripts
+    ├─► (Future) Show diff, copy, download, push changes
+    └─► (Future) Run tests from the tool via CLI
 ```
 
 ---
 
-## Delivery Chunks
+## What's Built (Completed)
 
-Development is split into incremental chunks. Each chunk produces a testable, demo-able outcome before the next one starts.
+### Chunk 1: Project Management + Repo Setup [DONE]
+- [x] Dashboard page — lists all projects as cards with status badges
+- [x] Create Project page with name, description, repo source toggle
+- [x] Folder picker modal (path bar, breadcrumbs, lazy-loading OS directory tree)
+- [x] Project card on dashboard showing name, repo info, status, created date
+- [x] Project model (id, name, description, repo_type, repo_url, local_path, repo_status, repo_error, test_path)
+- [x] CRUD endpoints: POST/GET/PATCH/DELETE /projects, GET /projects/{id}
+- [x] Local path validation (exists, is directory, has test automation)
+- [x] Git init support: if no .git detected, prompt user → run git init → create project
+- [x] GitHub clone (async background task) with test automation validation
+- [x] PostgreSQL + Alembic migrations (projects, test_scripts tables)
+- [x] System directory browser endpoint (GET /system/dirs) for folder picker
 
-### Chunk 1: Project Management + Repo Setup
-> **Goal:** User can create and list projects tied to a repository.
+### Project Detail Page [DONE]
+- [x] Editable name/description with Save button (repo path read-only)
+- [x] Delete project with confirmation → redirect to dashboard
+- [x] Repository section: type, URL, local path, status badge (read-only)
+- [x] Test Suite section with auto-refresh:
+  - [x] Summary cards: test files, test cases, frameworks
+  - [x] Detected frameworks tags
+  - [x] Test Explorer tree: collapsible directories → files → test function names
+  - [x] Config-driven test path detection (reads playwright.config, cypress.config, jest.config, vitest.config, Maven/Gradle conventions)
+  - [x] Manual test_path override via in-repo directory browser when auto-detection fails
+  - [x] Test path shown as tag with clear button
+- [x] Run Tests stub (disabled button, "coming soon")
 
-**Frontend:**
-- [ ] Dashboard page (landing page) — lists all projects
-- [ ] "Create Project" button on dashboard
-- [ ] Create Project page/form with:
-  - [ ] Project name (required)
-  - [ ] Description (optional)
-  - [ ] Repo source toggle: "Local Path" vs "GitHub URL" (required)
-  - [ ] Input field for local path OR GitHub URL based on toggle
-  - [ ] Form validation — repo field is mandatory
-  - [ ] Submit → creates project → redirects to dashboard
-- [ ] Project card/row on dashboard showing name, repo info, created date
-- [ ] Click project → navigates to project detail page (placeholder for Chunk 2)
+### Test Discovery Capabilities [DONE]
+- [x] Config-based detection priority: user test_path > framework config > Java convention > heuristic
+- [x] Supported frameworks: pytest, jest, vitest, playwright, cypress, mocha, karma, phpunit, junit, cucumber
+- [x] File patterns: test_*.py, *_test.py, *.test.ts/js, *.spec.ts/js, *.cy.ts/js, *.feature, *Test.java, *Tests.cs, *_test.go
+- [x] Test name extraction: Python (def test_*), JS/TS (it/test/describe), Java (@Test), Go (func Test*), C# ([Test]/[Fact]), Gherkin (Scenario/Scenario Outline)
+- [x] Excluded dirs: .venv, node_modules, .git, __pycache__, dist, build, etc.
+- [x] p.is_file() filter to prevent directory false matches
+
+---
+
+## Current Work: Chunk 2 — LLM Settings + BDD Input + AI Test Matching
+
+### Part 1: LLM Settings (configurable via UI)
+> **Goal:** User configures their LLM provider from the dashboard settings page.
 
 **Backend:**
-- [ ] `Project` model (id, name, description, repo_type, repo_url, local_path, status, created_at, updated_at)
-- [ ] `Project` Pydantic schemas (create, read, update)
-- [ ] CRUD API endpoints: POST /projects, GET /projects, GET /projects/{id}, DELETE /projects/{id}
-- [ ] Local path validation — check directory exists and contains a git repo
-- [ ] GitHub clone — clone remote repo to managed workspace directory
-- [ ] Return repo status (valid, cloning, cloned, error) in project response
+- [ ] `Settings` model (single-row: llm_provider, llm_api_key, llm_model)
+- [ ] Schemas: SettingsRead (key masked), SettingsUpdate, ConnectionTestResult
+- [ ] GET /settings, PATCH /settings, POST /settings/test-connection
+- [ ] LLM service (`llm.py`): LangChain ChatModel factory, connection test
+- [ ] Alembic migration for settings table
 
-**Infrastructure:**
-- [ ] PostgreSQL database setup + Alembic migration for `projects` table
-- [ ] Managed workspace directory for cloned repos (configurable path)
+**Frontend:**
+- [ ] Settings gear icon on dashboard header → links to /settings
+- [ ] Settings page: provider dropdown, API key (password), model input
+- [ ] "Test Connection" button → verify key/model with minimal LLM call
+- [ ] "Save" button → only enabled after successful connection test
 
-**Definition of Done:** User can open the app, see an empty dashboard, click "Create Project", provide a name + local repo path or GitHub URL, submit, and see the project appear on the dashboard with correct repo status.
+**Dependencies:** langgraph, langchain-core, langchain-anthropic, langchain-openai
+
+### Part 2: BDD Input on Project Detail
+> **Goal:** User enters acceptance criteria (BDD format) inside a project.
+
+**Backend:**
+- [ ] `AcceptanceCriteria` model (id, project_id FK, content, created_at)
+- [ ] Schemas: ACCreate, ACRead
+- [ ] POST /projects/{id}/acceptance-criteria, GET list, DELETE by id
+- [ ] Alembic migration for acceptance_criteria table
+
+**Frontend:**
+- [ ] New "Acceptance Criteria" section on project detail page
+- [ ] Textarea for BDD input (Given/When/Then)
+- [ ] Save button, list of saved ACs, delete per AC
+- [ ] "Analyze" button next to each saved AC
+
+### Part 3: AI Test Matching (LangGraph)
+> **Goal:** AI finds which existing tests are related to the acceptance criteria.
+
+**Backend:**
+- [ ] LangGraph workflow (`analyzer.py`) with nodes:
+  1. `parse_criteria` — structure the raw BDD text
+  2. `build_context` — read test tree + relevant test file contents
+  3. `match_tests` — invoke LLM with AC + context
+  4. `format_results` — parse into structured matches
+- [ ] Schemas: AnalysisRequest, MatchedTest (file, test, relevance, explanation), AnalysisResult
+- [ ] POST /projects/{id}/analyze — accepts ac_id, returns matched tests
+
+**Frontend:**
+- [ ] Loading spinner while LLM processes
+- [ ] Results panel: matched tests grouped by relevance (direct/partial/related)
+- [ ] Each match: file path, test name, explanation
+- [ ] Summary from the LLM
+
+**Definition of Done:** User configures LLM in settings, opens a project, enters BDD criteria, clicks Analyze, and sees which existing tests are related with explanations.
 
 ---
 
-### Chunk 2: BDD Input + Repo Scanning
-> **Goal:** Inside a project, user provides acceptance criteria and the system scans the repo.
+## Future Chunks
 
-- [ ] Project detail page with input area for BDD acceptance criteria
-- [ ] Framework/language auto-detection from repo scan
-- [ ] Display repo structure and detected test setup
-- [ ] Store acceptance criteria per project in database
-- [ ] JIRA integration: fetch AC from ticket number
-- [ ] Azure DevOps integration: fetch AC from work item ID
+### Chunk 3: AI Script Generation + Modification
+> AI generates new test scripts or modifies existing ones based on BDD + repo context.
 
-**Definition of Done:** User opens a project, sees the detected repo structure/framework, enters BDD criteria (or fetches from JIRA/Azure), and the system stores it ready for AI processing.
-
----
-
-### Chunk 3: AI Orchestration — Script Generation
-> **Goal:** AI generates or modifies test scripts based on BDD input + repo context.
-
-- [ ] Connect LLM provider
-- [ ] Parse BDD into structured test scenarios
-- [ ] Analyze existing test code for patterns, conventions, utilities
 - [ ] Generate new test scripts matching repo style and framework
-- [ ] Modify existing scripts when AC updates existing functionality
+- [ ] Modify existing scripts when AC updates functionality
+- [ ] Syntax-highlighted code viewer + diff view
+- [ ] Copy to clipboard, download files
 - [ ] Validate generated code for syntax correctness
-- [ ] Provide explanation of generation decisions
 
-**Definition of Done:** User submits BDD criteria in a project, and the AI produces test scripts that match the repo's existing style and framework.
+### Chunk 4: JIRA / Azure DevOps Integration
+> Fetch acceptance criteria from issue trackers.
 
----
+- [ ] JIRA REST API client (authenticate, fetch AC from ticket)
+- [ ] Azure DevOps API client (authenticate, fetch AC from work item)
+- [ ] Auto-populate BDD input from fetched data
 
-### Chunk 4: Output & Review Experience
-> **Goal:** Polished UI for reviewing, copying, and downloading generated scripts.
+### Chunk 5: Test Execution
+> Run tests from the tool directly.
 
-- [ ] Syntax-highlighted code viewer
-- [ ] Diff view when modifying existing scripts
-- [ ] Copy to clipboard
-- [ ] Download generated files
-- [ ] AI explanation and suggestions panel
+- [ ] Detect CLI command per framework (pytest, npx playwright test, etc.)
+- [ ] Run button triggers background CLI execution at repo location
+- [ ] Stream test output to the UI
+- [ ] Show pass/fail results
 
-**Definition of Done:** User can review generated scripts with proper syntax highlighting, see diffs, copy code, and download files.
-
----
-
-### Chunk 5: JIRA / Azure DevOps Integration
-> **Goal:** Fetch acceptance criteria directly from issue trackers.
-
-- [ ] JIRA REST API client (authenticate, fetch ticket AC)
-- [ ] Azure DevOps API client (authenticate, fetch work item AC)
-- [ ] Settings page for API tokens/URLs
-- [ ] Auto-populate input form from fetched data
-
-**Definition of Done:** User enters a JIRA ticket or Azure work item ID, and the AC auto-populates in the project.
-
----
-
-### Chunk 6: Git Remote Clone Support
-> **Goal:** Robustly handle cloning and lifecycle of remote repos.
+### Chunk 6: Git Remote Clone Enhancements
+> Robust remote repo handling.
 
 - [ ] Clone progress feedback in UI
 - [ ] SSH key / token authentication for private repos
-- [ ] Cleanup lifecycle for old cloned repos
-- [ ] Re-pull / refresh support for already-cloned repos
-
-**Definition of Done:** User provides a private or public GitHub URL, sees clone progress, and the repo is available for scanning.
+- [ ] Cleanup lifecycle for old clones
+- [ ] Re-pull / refresh support
 
 ---
 
 ## Architecture
 
 ```
-┌──────────────────────────────────────────────────────────┐
-│                     Frontend (Next.js)                    │
-│                                                          │
-│  ┌────────────┐  ┌──────────────┐  ┌──────────────────┐ │
-│  │ Dashboard   │  │ Create       │  │ Project Detail   │ │
-│  │ (project    │→ │ Project      │→ │ (BDD input +     │ │
-│  │  list)      │  │ (name+repo)  │  │  results viewer) │ │
-│  └────────────┘  └──────────────┘  └──────────────────┘ │
-└──────────────────────┬───────────────────────────────────┘
-                       │ HTTP (REST)
-┌──────────────────────▼───────────────────────────────────┐
-│                    Backend (FastAPI)                      │
-│                                                          │
-│  ┌────────────┐  ┌──────────────┐  ┌──────────────────┐ │
-│  │ Project    │  │ Repo Manager │  │ AI Orchestrator  │ │
-│  │ CRUD       │  │ (validate /  │  │                  │ │
-│  │            │  │  clone /     │  │ - Parse BDD      │ │
-│  │            │  │  scan)       │  │ - Analyze repo   │ │
-│  └────────────┘  └──────────────┘  │ - Generate code  │ │
-│                                    └──────────────────┘ │
-│  ┌────────────┐                                         │
-│  │ JIRA /     │                                         │
-│  │ Azure      │  ┌──────────────────────────────────┐   │
-│  │ Client     │  │     PostgreSQL + pgvector         │   │
-│  └────────────┘  │ (projects, scripts, embeddings)   │   │
-│                  └──────────────────────────────────┘   │
-└─────────────────────────────────────────────────────────┘
+┌──────────────────────────────────────────────────────────────┐
+│                      Frontend (Next.js 16)                    │
+│                                                              │
+│  ┌──────────┐ ┌────────────┐ ┌────────────┐ ┌────────────┐ │
+│  │Dashboard  │ │Create      │ │Project     │ │Settings    │ │
+│  │(projects  │→│Project     │→│Detail      │ │(LLM config)│ │
+│  │ + settings│ │(name+repo  │ │(AC input + │ │            │ │
+│  │  icon)    │ │ + browse)  │ │ test tree +│ │            │ │
+│  │           │ │            │ │ AI results)│ │            │ │
+│  └──────────┘ └────────────┘ └────────────┘ └────────────┘ │
+└────────────────────────┬─────────────────────────────────────┘
+                         │ HTTP (REST)
+┌────────────────────────▼─────────────────────────────────────┐
+│                     Backend (FastAPI)                         │
+│                                                              │
+│  ┌──────────┐ ┌────────────┐ ┌────────────────────────────┐ │
+│  │Project   │ │Repo Manager│ │AI Orchestration (LangGraph)│ │
+│  │CRUD      │ │- validate  │ │                            │ │
+│  │          │ │- clone     │ │ parse_criteria             │ │
+│  │Settings  │ │- scan      │ │      ▼                     │ │
+│  │CRUD      │ │- count     │ │ build_context              │ │
+│  │          │ │- detect    │ │      ▼                     │ │
+│  │AC CRUD   │ │  framework │ │ match_tests (LLM call)     │ │
+│  └──────────┘ └────────────┘ │      ▼                     │ │
+│                              │ format_results             │ │
+│  ┌──────────┐                └────────────────────────────┘ │
+│  │LLM       │                                               │
+│  │Service   │  ┌────────────────────────────────────────┐   │
+│  │(LangChain│  │        PostgreSQL + pgvector           │   │
+│  │ Anthropic│  │ projects, settings, acceptance_criteria│   │
+│  │ OpenAI)  │  │ test_scripts, embeddings               │   │
+│  └──────────┘  └────────────────────────────────────────┘   │
+└─────────────────────────────────────────────────────────────┘
 ```
+
+## API Endpoints (Current + Planned)
+
+| Method | Path                                    | Status  | Description                         |
+|--------|-----------------------------------------|---------|-------------------------------------|
+| GET    | /health                                 | Done    | Health check                        |
+| POST   | /projects/                              | Done    | Create project                      |
+| GET    | /projects/                              | Done    | List projects                       |
+| GET    | /projects/{id}                          | Done    | Get project                         |
+| PATCH  | /projects/{id}                          | Done    | Update project (name/desc/test_path)|
+| DELETE | /projects/{id}                          | Done    | Delete project                      |
+| GET    | /projects/{id}/test-stats               | Done    | Scan repo, return test tree         |
+| GET    | /projects/{id}/repo-dirs                | Done    | Browse dirs within a repo           |
+| GET    | /system/dirs                            | Done    | Browse OS filesystem dirs           |
+| GET    | /settings                               | Planned | Get LLM settings                    |
+| PATCH  | /settings                               | Planned | Update LLM settings                 |
+| POST   | /settings/test-connection               | Planned | Verify LLM connection               |
+| POST   | /projects/{id}/acceptance-criteria      | Planned | Save AC                             |
+| GET    | /projects/{id}/acceptance-criteria      | Planned | List ACs for project                |
+| DELETE | /projects/{id}/acceptance-criteria/{aid}| Planned | Delete an AC                        |
+| POST   | /projects/{id}/analyze                  | Planned | AI test matching                    |
 
 ## Development Guidelines
 
 - Follow TDD — write failing tests first, then implement.
 - Keep frontend, backend, and AI logic cleanly separated.
 - API versioning under `/api/v1`.
-- All secrets (JIRA tokens, Azure PATs, LLM keys) via environment variables, never in code.
+- All secrets (LLM keys, JIRA tokens) via database settings or env vars, never in code.
 - Commit frequently, document architectural decisions in this file.
 - Complete one chunk fully before starting the next.
+- Test discovery priority: user test_path > framework config > Java convention > heuristic.
+- Repos must have existing test automation — this tool optimizes, not creates from scratch.
+- Repo path is immutable once set — new repo = new project.
 
 ---
 
@@ -210,5 +283,11 @@ Development is split into incremental chunks. Each chunk produces a testable, de
 | 2026-09-08 | Monorepo (frontend/ + backend/)             | Simpler development workflow for a single team |
 | 2026-09-08 | Next.js 16 + FastAPI                        | User-specified tech stack                      |
 | 2026-09-08 | BDD input + JIRA/Azure as primary input modes | Matches how QA teams typically work            |
-| 2026-09-08 | Project as top-level entity                 | Projects group repo + requirements + generated scripts; dashboard is the landing page |
-| 2026-09-08 | 6-chunk incremental delivery                | Each chunk is independently testable and demo-able before moving on |
+| 2026-09-08 | Project as top-level entity                 | Projects group repo + requirements + generated scripts |
+| 2026-09-08 | 6-chunk incremental delivery                | Each chunk is independently testable and demo-able |
+| 2026-09-08 | Config-driven test path detection           | Read framework configs instead of guessing; user override as fallback |
+| 2026-09-08 | Folder picker modal via backend API         | Browsers can't access OS filesystem paths; API-powered modal with path bar + breadcrumbs |
+| 2026-09-08 | Allow projects without .git (offer git init)| Not all repos are git-initialized; prompt user and init if accepted |
+| 2026-09-08 | sync subprocess.run for git init on Windows | asyncio.create_subprocess_exec fails in FastAPI's event loop on Windows |
+| 2026-09-08 | LangGraph + LangChain for AI orchestration  | Graph-based workflow is extensible; LangChain gives provider abstraction (Anthropic/OpenAI) |
+| 2026-09-08 | User-configurable LLM via settings page     | No hardcoded provider; user provides their own API key; connection validated before save |
