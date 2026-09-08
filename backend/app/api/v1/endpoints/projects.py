@@ -12,6 +12,7 @@ from app.db.session import get_db
 from app.models.acceptance_criteria import AcceptanceCriteria
 from app.models.project import Project, RepoStatus, RepoType
 from app.schemas.acceptance_criteria import ACCreate, ACRead
+from app.schemas.analysis import AnalysisRequest, AnalysisResult
 from app.schemas.project import (
     ProjectCreate,
     ProjectRead,
@@ -243,3 +244,40 @@ async def delete_acceptance_criteria(
         raise HTTPException(status_code=404, detail="Acceptance criteria not found")
     await db.delete(ac)
     await db.commit()
+
+
+# Analysis
+
+@router.post("/{project_id}/analyze", response_model=AnalysisResult)
+async def analyze_tests(
+    project_id: uuid.UUID,
+    payload: AnalysisRequest,
+    db: AsyncSession = Depends(get_db),
+) -> dict:
+    from app.services.analyzer import find_related_tests
+    from app.services.llm import get_configured_model
+
+    project = await db.get(Project, project_id)
+    if not project:
+        raise HTTPException(status_code=404, detail="Project not found")
+
+    if not project.local_path or not Path(project.local_path).is_dir():
+        raise HTTPException(status_code=400, detail="Repository is not available")
+
+    ac = await db.get(AcceptanceCriteria, payload.ac_id)
+    if not ac or ac.project_id != project_id:
+        raise HTTPException(status_code=404, detail="Acceptance criteria not found")
+
+    llm = await get_configured_model(db)
+    if not llm:
+        raise HTTPException(
+            status_code=400,
+            detail="LLM is not configured. Go to Settings to set up your AI provider.",
+        )
+
+    return await find_related_tests(
+        ac_content=ac.content,
+        repo_path=project.local_path,
+        test_path=project.test_path,
+        llm=llm,
+    )

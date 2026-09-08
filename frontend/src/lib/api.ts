@@ -4,6 +4,7 @@
 import type {
   ACCreate,
   ACRead,
+  AnalysisResult,
   ConnectionTestRequest,
   ConnectionTestResult,
   OptimizationRequest,
@@ -94,6 +95,18 @@ export async function deleteAC(
 ): Promise<void> {
   await request<void>(`/projects/${projectId}/acceptance-criteria/${acId}`, {
     method: "DELETE",
+  });
+}
+
+// Analysis
+
+export async function analyzeTests(
+  projectId: string,
+  acId: string
+): Promise<AnalysisResult> {
+  return request<AnalysisResult>(`/projects/${projectId}/analyze`, {
+    method: "POST",
+    body: JSON.stringify({ ac_id: acId }),
   });
 }
 

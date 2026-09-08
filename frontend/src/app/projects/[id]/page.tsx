@@ -15,8 +15,9 @@ import {
   createAC,
   listACs,
   deleteAC,
+  analyzeTests,
 } from "@/lib/api";
-import type { Project, TestStats, TestDirectory, TestFile, RepoDir, ACRead } from "@/types";
+import type { Project, TestStats, TestDirectory, TestFile, RepoDir, ACRead, AnalysisResult } from "@/types";
 
 
 function DirectoryNode({ dir }: { dir: TestDirectory }) {
@@ -221,6 +222,11 @@ export default function ProjectDetail() {
   const [acSaving, setAcSaving] = useState(false);
   const [acError, setAcError] = useState<string | null>(null);
 
+  // Analysis
+  const [analysisResult, setAnalysisResult] = useState<AnalysisResult | null>(null);
+  const [analyzingAcId, setAnalyzingAcId] = useState<string | null>(null);
+  const [analysisError, setAnalysisError] = useState<string | null>(null);
+
   useEffect(() => {
     async function fetch() {
       try {
@@ -333,6 +339,22 @@ export default function ProjectDetail() {
       );
     } finally {
       setAcSaving(false);
+    }
+  }
+
+  async function handleAnalyze(acId: string) {
+    setAnalyzingAcId(acId);
+    setAnalysisResult(null);
+    setAnalysisError(null);
+    try {
+      const result = await analyzeTests(projectId, acId);
+      setAnalysisResult(result);
+    } catch (err) {
+      setAnalysisError(
+        err instanceof Error ? err.message : "Analysis failed"
+      );
+    } finally {
+      setAnalyzingAcId(null);
     }
   }
 
@@ -687,11 +709,11 @@ export default function ProjectDetail() {
                       </pre>
                       <div className="flex gap-2 shrink-0">
                         <button
-                          disabled
-                          title="Coming next — AI analysis"
-                          className="rounded border border-zinc-300 dark:border-zinc-700 px-3 py-1 text-xs font-medium text-zinc-400 cursor-not-allowed"
+                          onClick={() => handleAnalyze(ac.id)}
+                          disabled={analyzingAcId !== null}
+                          className="rounded border border-blue-300 dark:border-blue-700 px-3 py-1 text-xs font-medium text-blue-600 dark:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-950 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
                         >
-                          Analyze
+                          {analyzingAcId === ac.id ? "Analyzing..." : "Analyze"}
                         </button>
                         <button
                           onClick={() => handleDeleteAC(ac.id)}
@@ -706,6 +728,106 @@ export default function ProjectDetail() {
                     </p>
                   </div>
                 ))}
+              </div>
+            )}
+          </section>
+        )}
+
+        {/* Analysis Results */}
+        {(analysisResult || analysisError || analyzingAcId) && (
+          <section className="rounded-lg border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 p-5">
+            <h2 className="text-sm font-semibold mb-4">Analysis Results</h2>
+
+            {analyzingAcId && (
+              <div className="flex items-center gap-3 py-4">
+                <div className="h-4 w-4 border-2 border-blue-500 border-t-transparent rounded-full animate-spin" />
+                <p className="text-sm text-zinc-500">
+                  Analyzing acceptance criteria against existing tests...
+                </p>
+              </div>
+            )}
+
+            {analysisError && (
+              <p className="text-sm text-red-600 dark:text-red-400">
+                {analysisError}
+              </p>
+            )}
+
+            {analysisResult && !analyzingAcId && (
+              <div className="space-y-4">
+                <p className="text-sm text-zinc-600 dark:text-zinc-400">
+                  {analysisResult.summary}
+                </p>
+
+                {analysisResult.matches.length > 0 && (
+                  <div className="space-y-2">
+                    {(["direct", "partial", "related"] as const).map(
+                      (relevance) => {
+                        const matches = analysisResult.matches.filter(
+                          (m) => m.relevance === relevance
+                        );
+                        if (matches.length === 0) return null;
+                        const colors = {
+                          direct:
+                            "border-green-200 dark:border-green-800 bg-green-50 dark:bg-green-950",
+                          partial:
+                            "border-yellow-200 dark:border-yellow-800 bg-yellow-50 dark:bg-yellow-950",
+                          related:
+                            "border-zinc-200 dark:border-zinc-700 bg-zinc-50 dark:bg-zinc-800",
+                        };
+                        const labels = {
+                          direct: "Direct Match",
+                          partial: "Partial Match",
+                          related: "Related",
+                        };
+                        return (
+                          <div key={relevance}>
+                            <p className="text-xs font-medium text-zinc-500 dark:text-zinc-400 mb-1">
+                              {labels[relevance]} ({matches.length})
+                            </p>
+                            {matches.map((match, i) => (
+                              <div
+                                key={i}
+                                className={`rounded-lg border p-3 mb-2 ${colors[relevance]}`}
+                              >
+                                <div className="flex items-baseline gap-2 mb-1">
+                                  <span className="font-mono text-xs font-semibold">
+                                    {match.test_name}
+                                  </span>
+                                </div>
+                                <p className="text-xs text-zinc-500 dark:text-zinc-400 font-mono mb-1">
+                                  {match.file_path}
+                                </p>
+                                <p className="text-xs text-zinc-600 dark:text-zinc-300">
+                                  {match.explanation}
+                                </p>
+                              </div>
+                            ))}
+                          </div>
+                        );
+                      }
+                    )}
+                  </div>
+                )}
+
+                {analysisResult.matches.length === 0 && (
+                  <p className="text-sm text-zinc-400 py-2">
+                    No matching tests found in the repository.
+                  </p>
+                )}
+
+                {analysisResult.suggestions.length > 0 && (
+                  <div>
+                    <p className="text-xs font-medium text-zinc-500 dark:text-zinc-400 mb-1">
+                      Suggestions
+                    </p>
+                    <ul className="list-disc list-inside space-y-1 text-xs text-zinc-600 dark:text-zinc-400">
+                      {analysisResult.suggestions.map((s, i) => (
+                        <li key={i}>{s}</li>
+                      ))}
+                    </ul>
+                  </div>
+                )}
               </div>
             )}
           </section>

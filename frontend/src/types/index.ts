@@ -106,6 +106,23 @@ export interface ConnectionTestResult {
   model_used: string | null;
 }
 
+export interface AnalysisRequest {
+  ac_id: string;
+}
+
+export interface MatchedTest {
+  file_path: string;
+  test_name: string;
+  relevance: "direct" | "partial" | "related";
+  explanation: string;
+}
+
+export interface AnalysisResult {
+  matches: MatchedTest[];
+  summary: string;
+  suggestions: string[];
+}
+
 export interface ACCreate {
   content: string;
 }
