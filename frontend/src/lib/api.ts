@@ -8,6 +8,7 @@ import type {
   ProjectCreate,
   ProjectUpdate,
   RepoDir,
+  SystemDirList,
   TestScript,
   TestScriptCreate,
   TestStats,
@@ -78,6 +79,13 @@ export async function getRepoDirs(
     `/projects/${id}/repo-dirs${params}`
   );
   return result.dirs;
+}
+
+// System — filesystem browsing
+
+export async function listSystemDirs(path: string = ""): Promise<SystemDirList> {
+  const params = path ? `?path=${encodeURIComponent(path)}` : "";
+  return request<SystemDirList>(`/system/dirs${params}`);
 }
 
 // Optimization

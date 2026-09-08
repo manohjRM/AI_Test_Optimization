@@ -3,10 +3,11 @@
 
 from fastapi import APIRouter
 
-from app.api.v1.endpoints import health, optimization, projects, test_scripts
+from app.api.v1.endpoints import health, optimization, projects, system, test_scripts
 
 router = APIRouter()
 router.include_router(health.router, tags=["health"])
 router.include_router(projects.router, prefix="/projects", tags=["projects"])
 router.include_router(test_scripts.router, prefix="/test-scripts", tags=["test-scripts"])
 router.include_router(optimization.router, prefix="/optimize", tags=["optimization"])
+router.include_router(system.router, prefix="/system", tags=["system"])

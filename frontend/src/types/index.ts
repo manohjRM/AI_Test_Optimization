@@ -34,6 +34,18 @@ export interface RepoDir {
   has_children: boolean;
 }
 
+export interface SystemDir {
+  name: string;
+  path: string;
+  has_children: boolean;
+}
+
+export interface SystemDirList {
+  current_path: string;
+  parent_path: string | null;
+  dirs: SystemDir[];
+}
+
 export interface TestFile {
   path: string;
   name: string;

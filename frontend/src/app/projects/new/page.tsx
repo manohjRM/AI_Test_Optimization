@@ -3,11 +3,133 @@
 
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
-import { createProject } from "@/lib/api";
-import type { ProjectCreate } from "@/types";
+import { createProject, listSystemDirs } from "@/lib/api";
+import type { ProjectCreate, SystemDir } from "@/types";
+
+
+function FolderBrowserNode({
+  dir,
+  onSelect,
+}: {
+  dir: SystemDir;
+  onSelect: (path: string) => void;
+}) {
+  const [open, setOpen] = useState(false);
+  const [children, setChildren] = useState<SystemDir[] | null>(null);
+  const [loading, setLoading] = useState(false);
+
+  async function handleToggle() {
+    if (!dir.has_children) return;
+    if (!open && children === null) {
+      setLoading(true);
+      try {
+        const result = await listSystemDirs(dir.path);
+        setChildren(result.dirs);
+      } catch {
+        setChildren([]);
+      } finally {
+        setLoading(false);
+      }
+    }
+    setOpen(!open);
+  }
+
+  return (
+    <div>
+      <div className="flex items-center gap-1 py-1 px-2 hover:bg-zinc-50 dark:hover:bg-zinc-800 rounded text-xs">
+        <button
+          type="button"
+          onClick={handleToggle}
+          className="text-zinc-400 select-none w-4 text-center shrink-0"
+        >
+          {dir.has_children
+            ? loading
+              ? "..."
+              : open
+                ? "▼"
+                : "▶"
+            : ""}
+        </button>
+        <span className="font-mono truncate">{dir.name}</span>
+        <button
+          type="button"
+          onClick={() => onSelect(dir.path)}
+          className="ml-auto shrink-0 text-blue-600 dark:text-blue-400 hover:underline text-xs"
+        >
+          Select
+        </button>
+      </div>
+      {open && children && children.length > 0 && (
+        <div className="ml-4">
+          {children.map((child) => (
+            <FolderBrowserNode
+              key={child.path}
+              dir={child}
+              onSelect={onSelect}
+            />
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+
+function FolderBrowser({
+  onSelect,
+  onClose,
+}: {
+  onSelect: (path: string) => void;
+  onClose: () => void;
+}) {
+  const [roots, setRoots] = useState<SystemDir[] | null>(null);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    listSystemDirs()
+      .then((result) => setRoots(result.dirs))
+      .catch(() => setRoots([]))
+      .finally(() => setLoading(false));
+  }, []);
+
+  return (
+    <div className="border border-zinc-200 dark:border-zinc-700 rounded-lg overflow-hidden">
+      <div className="flex items-center justify-between px-3 py-2 bg-zinc-50 dark:bg-zinc-800 border-b border-zinc-200 dark:border-zinc-700">
+        <span className="text-xs font-medium">Select Repository Folder</span>
+        <button
+          type="button"
+          onClick={onClose}
+          className="text-xs text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-300"
+        >
+          Close
+        </button>
+      </div>
+      <div className="p-2 max-h-72 overflow-y-auto">
+        {loading && (
+          <p className="text-xs text-zinc-400 py-2">Loading...</p>
+        )}
+        {roots && roots.length === 0 && (
+          <p className="text-xs text-zinc-400 py-2">No directories found.</p>
+        )}
+        {roots &&
+          roots.map((dir) => (
+            <FolderBrowserNode
+              key={dir.path}
+              dir={dir}
+              onSelect={(path) => {
+                onSelect(path);
+                onClose();
+              }}
+            />
+          ))}
+      </div>
+    </div>
+  );
+}
+
 
 export default function NewProject() {
   const router = useRouter();
@@ -17,6 +139,7 @@ export default function NewProject() {
   const [repoUrl, setRepoUrl] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [showBrowser, setShowBrowser] = useState(false);
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -107,6 +230,7 @@ export default function NewProject() {
                 onClick={() => {
                   setRepoType("local");
                   setRepoUrl("");
+                  setShowBrowser(false);
                 }}
                 className={`flex-1 rounded-lg border px-4 py-2.5 text-sm font-medium transition-colors ${
                   repoType === "local"
@@ -121,6 +245,7 @@ export default function NewProject() {
                 onClick={() => {
                   setRepoType("github");
                   setRepoUrl("");
+                  setShowBrowser(false);
                 }}
                 className={`flex-1 rounded-lg border px-4 py-2.5 text-sm font-medium transition-colors ${
                   repoType === "github"
@@ -142,25 +267,49 @@ export default function NewProject() {
                   : "GitHub Repository URL"}{" "}
                 <span className="text-red-500">*</span>
               </label>
-              <input
-                id="repo-url"
-                type="text"
-                value={repoUrl}
-                onChange={(e) => setRepoUrl(e.target.value)}
-                placeholder={
-                  repoType === "local"
-                    ? "C:\\Projects\\my-app  or  /home/user/my-app"
-                    : "https://github.com/owner/repo.git"
-                }
-                required
-                className="w-full rounded-lg border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-900 px-3 py-2 text-sm font-mono focus:outline-none focus:ring-2 focus:ring-blue-500"
-              />
+              <div className="flex gap-2">
+                <input
+                  id="repo-url"
+                  type="text"
+                  value={repoUrl}
+                  onChange={(e) => setRepoUrl(e.target.value)}
+                  placeholder={
+                    repoType === "local"
+                      ? "C:\\Projects\\my-app  or  /home/user/my-app"
+                      : "https://github.com/owner/repo.git"
+                  }
+                  required
+                  className="flex-1 rounded-lg border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-900 px-3 py-2 text-sm font-mono focus:outline-none focus:ring-2 focus:ring-blue-500"
+                />
+                {repoType === "local" && (
+                  <button
+                    type="button"
+                    onClick={() => setShowBrowser(!showBrowser)}
+                    className={`shrink-0 rounded-lg border px-3 py-2 text-sm font-medium transition-colors ${
+                      showBrowser
+                        ? "border-blue-500 bg-blue-50 text-blue-700 dark:bg-blue-950 dark:text-blue-300"
+                        : "border-zinc-300 dark:border-zinc-700 hover:bg-zinc-50 dark:hover:bg-zinc-800"
+                    }`}
+                  >
+                    Browse
+                  </button>
+                )}
+              </div>
               <p className="mt-1.5 text-xs text-zinc-400 dark:text-zinc-500">
                 {repoType === "local"
                   ? "The directory must contain a .git folder (be a git repository)."
                   : "The repo will be cloned to the server. Use HTTPS URL for public repos."}
               </p>
             </div>
+
+            {showBrowser && repoType === "local" && (
+              <div className="mt-3">
+                <FolderBrowser
+                  onSelect={(path) => setRepoUrl(path)}
+                  onClose={() => setShowBrowser(false)}
+                />
+              </div>
+            )}
           </div>
 
           <div className="flex gap-3 pt-2">
