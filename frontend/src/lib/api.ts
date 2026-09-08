@@ -2,12 +2,16 @@
 // ABOUTME: All backend calls route through this module.
 
 import type {
+  ConnectionTestRequest,
+  ConnectionTestResult,
   OptimizationRequest,
   OptimizationResponse,
   Project,
   ProjectCreate,
   ProjectUpdate,
   RepoDir,
+  SettingsRead,
+  SettingsUpdate,
   SystemDirList,
   TestScript,
   TestScriptCreate,
@@ -79,6 +83,30 @@ export async function getRepoDirs(
     `/projects/${id}/repo-dirs${params}`
   );
   return result.dirs;
+}
+
+// Settings
+
+export async function getSettings(): Promise<SettingsRead> {
+  return request<SettingsRead>("/settings/");
+}
+
+export async function updateSettings(
+  payload: SettingsUpdate
+): Promise<SettingsRead> {
+  return request<SettingsRead>("/settings/", {
+    method: "PATCH",
+    body: JSON.stringify(payload),
+  });
+}
+
+export async function testLLMConnection(
+  payload: ConnectionTestRequest
+): Promise<ConnectionTestResult> {
+  return request<ConnectionTestResult>("/settings/test-connection", {
+    method: "POST",
+    body: JSON.stringify(payload),
+  });
 }
 
 // System — filesystem browsing

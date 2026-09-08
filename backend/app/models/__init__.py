@@ -2,6 +2,7 @@
 # ABOUTME: Each module defines one domain entity (test scripts, projects, etc.).
 
 from app.models.project import Project
+from app.models.settings import Settings
 from app.models.test_script import TestScript
 
-__all__ = ["Project", "TestScript"]
+__all__ = ["Project", "Settings", "TestScript"]

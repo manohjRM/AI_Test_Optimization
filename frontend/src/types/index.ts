@@ -81,6 +81,31 @@ export interface OptimizationResponse {
   suggestions: string[];
 }
 
+export interface SettingsRead {
+  llm_provider: string;
+  llm_model: string;
+  has_api_key: boolean;
+  updated_at: string | null;
+}
+
+export interface SettingsUpdate {
+  llm_provider?: string;
+  llm_api_key?: string;
+  llm_model?: string;
+}
+
+export interface ConnectionTestRequest {
+  llm_provider: string;
+  llm_api_key: string;
+  llm_model: string;
+}
+
+export interface ConnectionTestResult {
+  success: boolean;
+  message: string;
+  model_used: string | null;
+}
+
 export interface TestScript {
   id: string;
   name: string;
