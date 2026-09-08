@@ -14,6 +14,7 @@ class Settings(Base):
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, default=1)
     llm_provider: Mapped[str] = mapped_column(String(50), nullable=False, default="anthropic")
+    llm_base_url: Mapped[str] = mapped_column(String(1024), nullable=False, default="")
     llm_api_key: Mapped[str] = mapped_column(Text, nullable=False, default="")
     llm_model: Mapped[str] = mapped_column(String(255), nullable=False, default="")
     updated_at: Mapped[datetime] = mapped_column(

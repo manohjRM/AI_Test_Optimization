@@ -83,6 +83,7 @@ export interface OptimizationResponse {
 
 export interface SettingsRead {
   llm_provider: string;
+  llm_base_url: string;
   llm_model: string;
   has_api_key: boolean;
   updated_at: string | null;
@@ -90,12 +91,14 @@ export interface SettingsRead {
 
 export interface SettingsUpdate {
   llm_provider?: string;
+  llm_base_url?: string;
   llm_api_key?: string;
   llm_model?: string;
 }
 
 export interface ConnectionTestRequest {
   llm_provider: string;
+  llm_base_url: string;
   llm_api_key: string;
   llm_model: string;
 }

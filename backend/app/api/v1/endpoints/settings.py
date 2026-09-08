@@ -33,6 +33,7 @@ async def get_settings(db: AsyncSession = Depends(get_db)) -> dict:
     settings = await _get_or_create_settings(db)
     return {
         "llm_provider": settings.llm_provider,
+        "llm_base_url": settings.llm_base_url,
         "llm_model": settings.llm_model,
         "has_api_key": bool(settings.llm_api_key),
         "updated_at": settings.updated_at,
@@ -53,6 +54,9 @@ async def update_settings(
             )
         settings.llm_provider = payload.llm_provider
 
+    if payload.llm_base_url is not None:
+        settings.llm_base_url = payload.llm_base_url
+
     if payload.llm_api_key is not None:
         settings.llm_api_key = payload.llm_api_key
 
@@ -64,6 +68,7 @@ async def update_settings(
 
     return {
         "llm_provider": settings.llm_provider,
+        "llm_base_url": settings.llm_base_url,
         "llm_model": settings.llm_model,
         "has_api_key": bool(settings.llm_api_key),
         "updated_at": settings.updated_at,
@@ -73,7 +78,7 @@ async def update_settings(
 @router.post("/test-connection", response_model=ConnectionTestResult)
 async def test_llm_connection(payload: ConnectionTestRequest) -> dict:
     success, message = await test_connection(
-        payload.llm_provider, payload.llm_api_key, payload.llm_model
+        payload.llm_provider, payload.llm_api_key, payload.llm_model, payload.llm_base_url
     )
     return {
         "success": success,

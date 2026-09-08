@@ -10,19 +10,28 @@ import { getSettings, updateSettings, testLLMConnection } from "@/lib/api";
 const PROVIDERS = [
   { value: "anthropic", label: "Anthropic (Claude)" },
   { value: "openai", label: "OpenAI (GPT)" },
+  {
+    value: "openai_compatible",
+    label: "OpenAI-Compatible (PortKey, Azure, LiteLLM, Ollama, etc.)",
+  },
 ];
 
-const MODEL_SUGGESTIONS: Record<string, string[]> = {
-  anthropic: [
-    "claude-sonnet-4-20250514",
-    "claude-haiku-4-20250514",
-    "claude-opus-4-20250514",
-  ],
-  openai: ["gpt-4o", "gpt-4o-mini", "gpt-4-turbo", "gpt-3.5-turbo"],
+const MODEL_PLACEHOLDERS: Record<string, string> = {
+  anthropic:
+    "e.g. claude-sonnet-4-20250514, claude-haiku-4-20250514, claude-opus-4-20250514",
+  openai: "e.g. gpt-4o, gpt-4o-mini, gpt-4-turbo",
+  openai_compatible: "Enter the model name for your provider",
+};
+
+const BASE_URL_PLACEHOLDERS: Record<string, string> = {
+  anthropic: "Leave empty for default Anthropic API",
+  openai: "Leave empty for default OpenAI API",
+  openai_compatible: "https://api.portkey.ai/v1 or your provider URL",
 };
 
 export default function SettingsPage() {
   const [provider, setProvider] = useState("anthropic");
+  const [baseUrl, setBaseUrl] = useState("");
   const [apiKey, setApiKey] = useState("");
   const [model, setModel] = useState("");
   const [hasExistingKey, setHasExistingKey] = useState(false);
@@ -42,6 +51,7 @@ export default function SettingsPage() {
     getSettings()
       .then((s) => {
         setProvider(s.llm_provider);
+        setBaseUrl(s.llm_base_url);
         setModel(s.llm_model);
         setHasExistingKey(s.has_api_key);
       })
@@ -49,11 +59,16 @@ export default function SettingsPage() {
       .finally(() => setLoading(false));
   }, []);
 
-  function handleProviderChange(newProvider: string) {
-    setProvider(newProvider);
-    setModel(MODEL_SUGGESTIONS[newProvider]?.[0] ?? "");
+  function resetVerification() {
     setTestResult(null);
     setConnectionVerified(false);
+  }
+
+  function handleProviderChange(newProvider: string) {
+    setProvider(newProvider);
+    setBaseUrl("");
+    setModel("");
+    resetVerification();
   }
 
   async function handleTestConnection() {
@@ -61,18 +76,18 @@ export default function SettingsPage() {
     setTestResult(null);
     setConnectionVerified(false);
 
-    const keyToTest = apiKey || (hasExistingKey ? "__existing__" : "");
-    if (!keyToTest || keyToTest === "__existing__") {
-      if (!apiKey && hasExistingKey) {
-        setTestResult({
-          success: false,
-          message:
-            "Enter your API key to test. The existing key is not shown for security.",
-        });
-        setTesting(false);
-        return;
-      }
+    if (!apiKey && !hasExistingKey) {
       setTestResult({ success: false, message: "API key is required" });
+      setTesting(false);
+      return;
+    }
+
+    if (!apiKey && hasExistingKey) {
+      setTestResult({
+        success: false,
+        message:
+          "Enter your API key to test. The existing key is not shown for security.",
+      });
       setTesting(false);
       return;
     }
@@ -80,6 +95,7 @@ export default function SettingsPage() {
     try {
       const result = await testLLMConnection({
         llm_provider: provider,
+        llm_base_url: baseUrl,
         llm_api_key: apiKey,
         llm_model: model,
       });
@@ -102,6 +118,7 @@ export default function SettingsPage() {
     try {
       await updateSettings({
         llm_provider: provider,
+        llm_base_url: baseUrl,
         llm_api_key: apiKey || undefined,
         llm_model: model,
       });
@@ -125,6 +142,9 @@ export default function SettingsPage() {
       </main>
     );
   }
+
+  const showBaseUrl =
+    provider === "openai_compatible" || baseUrl.length > 0;
 
   return (
     <main className="flex-1 flex flex-col">
@@ -168,6 +188,47 @@ export default function SettingsPage() {
             </select>
           </div>
 
+          {/* Base URL — always shown for openai_compatible, toggleable for others */}
+          {showBaseUrl || provider === "openai_compatible" ? (
+            <div>
+              <label
+                htmlFor="base-url"
+                className="block text-sm font-medium mb-1.5"
+              >
+                Base URL
+                {provider === "openai_compatible" && (
+                  <span className="text-red-500 ml-1">*</span>
+                )}
+              </label>
+              <input
+                id="base-url"
+                type="text"
+                value={baseUrl}
+                onChange={(e) => {
+                  setBaseUrl(e.target.value);
+                  resetVerification();
+                }}
+                placeholder={
+                  BASE_URL_PLACEHOLDERS[provider] ?? "https://..."
+                }
+                className="w-full rounded-lg border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-900 px-3 py-2 text-sm font-mono focus:outline-none focus:ring-2 focus:ring-blue-500"
+              />
+              {provider !== "openai_compatible" && (
+                <p className="mt-1 text-xs text-zinc-400">
+                  Optional — leave empty to use the default API endpoint.
+                </p>
+              )}
+            </div>
+          ) : (
+            <button
+              type="button"
+              onClick={() => setBaseUrl(" ")}
+              className="text-xs text-blue-600 dark:text-blue-400 hover:underline"
+            >
+              + Add custom Base URL (for proxies, self-hosted, etc.)
+            </button>
+          )}
+
           <div>
             <label
               htmlFor="api-key"
@@ -186,8 +247,7 @@ export default function SettingsPage() {
               value={apiKey}
               onChange={(e) => {
                 setApiKey(e.target.value);
-                setTestResult(null);
-                setConnectionVerified(false);
+                resetVerification();
               }}
               placeholder={
                 hasExistingKey
@@ -205,23 +265,19 @@ export default function SettingsPage() {
             >
               Model
             </label>
-            <select
+            <input
               id="model"
+              type="text"
               value={model}
               onChange={(e) => {
                 setModel(e.target.value);
-                setTestResult(null);
-                setConnectionVerified(false);
+                resetVerification();
               }}
-              className="w-full rounded-lg border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-900 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-            >
-              <option value="">Select a model...</option>
-              {(MODEL_SUGGESTIONS[provider] ?? []).map((m) => (
-                <option key={m} value={m}>
-                  {m}
-                </option>
-              ))}
-            </select>
+              placeholder={
+                MODEL_PLACEHOLDERS[provider] ?? "Enter model name..."
+              }
+              className="w-full rounded-lg border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-900 px-3 py-2 text-sm font-mono focus:outline-none focus:ring-2 focus:ring-blue-500"
+            />
           </div>
 
           {/* Test Connection */}
