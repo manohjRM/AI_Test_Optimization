@@ -461,22 +461,26 @@ def validate_local_repo(path: str) -> tuple[bool, str]:
     return True, path
 
 
-async def init_git_repo(path: str) -> tuple[bool, str]:
+def init_git_repo(path: str) -> tuple[bool, str]:
     """Run git init in the given directory."""
+    import subprocess
+
     repo_path = Path(path)
     if not repo_path.is_dir():
         return False, f"Path is not a directory: {path}"
 
-    proc = await asyncio.create_subprocess_exec(
-        "git", "init", str(repo_path),
-        stdout=asyncio.subprocess.PIPE,
-        stderr=asyncio.subprocess.PIPE,
-    )
-    stdout, stderr = await proc.communicate()
+    try:
+        proc = subprocess.run(
+            ["git", "init", str(repo_path)],
+            capture_output=True,
+            text=True,
+            timeout=30,
+        )
+    except Exception as e:
+        return False, f"git init failed: {e}"
 
     if proc.returncode != 0:
-        error_msg = stderr.decode().strip() if stderr else "git init failed"
-        return False, error_msg
+        return False, proc.stderr.strip() or "git init failed"
 
     return True, path
 

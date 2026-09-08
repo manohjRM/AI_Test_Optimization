@@ -68,7 +68,7 @@ async def create_project(
         valid, result = validate_local_repo(payload.repo_url)
         if not valid:
             if result.startswith(NO_GIT_ERROR_PREFIX) and payload.force_init_git:
-                init_ok, init_result = await init_git_repo(payload.repo_url)
+                init_ok, init_result = init_git_repo(payload.repo_url)
                 if not init_ok:
                     raise HTTPException(status_code=400, detail=init_result)
             elif result.startswith(NO_GIT_ERROR_PREFIX):
