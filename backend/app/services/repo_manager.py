@@ -28,6 +28,8 @@ TEST_FILE_PATTERNS = [
     "test_*.py", "*_test.py", "*_test.go",
     "*.test.ts", "*.test.tsx", "*.test.js", "*.test.jsx",
     "*.spec.ts", "*.spec.tsx", "*.spec.js", "*.spec.jsx",
+    "*.cy.ts", "*.cy.js", "*.cy.tsx", "*.cy.jsx",
+    "*.feature",
     "*Test.java", "*Tests.cs",
 ]
 
@@ -122,6 +124,11 @@ PATTERN_FRAMEWORK_MAP: dict[str, str] = {
     "*.spec.tsx": "playwright/jasmine",
     "*.spec.js": "playwright/jasmine",
     "*.spec.jsx": "playwright/jasmine",
+    "*.cy.ts": "cypress",
+    "*.cy.js": "cypress",
+    "*.cy.tsx": "cypress",
+    "*.cy.jsx": "cypress",
+    "*.feature": "cucumber",
     "*Test.java": "junit",
     "*Tests.cs": "nunit/xunit",
 }
@@ -220,6 +227,10 @@ def _resolve_test_dir_from_config(repo_path: Path) -> list[Path]:
     return resolved
 
 
+_FEATURE_SCENARIO_RE = re.compile(
+    r"^\s*(?:Scenario|Scenario Outline|Scenario Template):\s*(.+)$", re.MULTILINE
+)
+
 _PYTHON_TEST_RE = re.compile(r"^\s*(?:async\s+)?def\s+(test_\w+)", re.MULTILINE)
 _JS_TEST_RE = re.compile(r"""\b(?:it|test)\s*\(\s*(['"`])(.+?)\1""", re.MULTILINE)
 _JS_DESCRIBE_RE = re.compile(r"""\bdescribe\s*\(\s*(['"`])(.+?)\1""", re.MULTILINE)
@@ -256,6 +267,8 @@ def _extract_test_names(file_path: Path) -> list[str]:
         names = _GO_TEST_RE.findall(content)
     elif suffix == ".cs":
         names = _CSHARP_TEST_RE.findall(content)
+    elif suffix == ".feature":
+        names = [s.strip() for s in _FEATURE_SCENARIO_RE.findall(content)]
 
     return names
 
@@ -284,7 +297,8 @@ def _discover_test_files(
         for pattern in TEST_FILE_PATTERNS:
             matches = [
                 p for p in search_dir.rglob(pattern)
-                if _is_project_path(p.relative_to(repo_path))
+                if p.is_file()
+                and _is_project_path(p.relative_to(repo_path))
                 and p not in seen_files
             ]
             if matches:
