@@ -3,7 +3,7 @@
 
 import json
 from pathlib import Path
-from typing import TypedDict
+from typing import Any, TypedDict
 
 from langchain_core.language_models import BaseChatModel
 from langchain_core.messages import HumanMessage, SystemMessage
@@ -47,6 +47,7 @@ class AnalysisState(TypedDict):
     test_context: str
     llm_response: str
     result: dict
+    llm: Any
 
 
 def parse_criteria(state: AnalysisState) -> dict:

@@ -159,7 +159,15 @@ export default function SettingsPage() {
           <span>/</span>
           <span>Settings</span>
         </div>
-        <h1 className="text-xl font-bold">LLM Settings</h1>
+        <div className="flex items-center justify-between">
+          <h1 className="text-xl font-bold">LLM Settings</h1>
+          <Link
+            href="/"
+            className="rounded-lg border border-zinc-300 dark:border-zinc-700 px-4 py-2 text-sm font-medium hover:bg-zinc-50 dark:hover:bg-zinc-800 transition-colors"
+          >
+            Back to Dashboard
+          </Link>
+        </div>
         <p className="text-sm text-zinc-500 dark:text-zinc-400 mt-1">
           Configure the AI provider used for test analysis and generation.
         </p>
