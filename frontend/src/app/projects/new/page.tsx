@@ -225,8 +225,7 @@ export default function NewProject() {
   const [error, setError] = useState<string | null>(null);
   const [showBrowser, setShowBrowser] = useState(false);
 
-  async function handleSubmit(e: React.FormEvent) {
-    e.preventDefault();
+  async function submitProject(forceGit: boolean) {
     setError(null);
     setIsSubmitting(true);
 
@@ -235,18 +234,36 @@ export default function NewProject() {
       description: description.trim() || undefined,
       repo_type: repoType,
       repo_url: repoUrl.trim(),
+      force_init_git: forceGit,
     };
 
     try {
       await createProject(payload);
       router.push("/");
     } catch (err) {
-      setError(
-        err instanceof Error ? err.message : "Failed to create project"
-      );
+      const message =
+        err instanceof Error ? err.message : "Failed to create project";
+
+      if (message.includes("409") && message.includes("NO_GIT:")) {
+        const accepted = confirm(
+          "No git repository detected at this path.\n\n" +
+            "Would you like to initialize a git repository (git init) and continue?"
+        );
+        if (accepted) {
+          await submitProject(true);
+          return;
+        }
+      }
+
+      setError(message);
     } finally {
       setIsSubmitting(false);
     }
+  }
+
+  async function handleSubmit(e: React.FormEvent) {
+    e.preventDefault();
+    await submitProject(false);
   }
 
   const isFormValid = name.trim().length > 0 && repoUrl.trim().length > 0;

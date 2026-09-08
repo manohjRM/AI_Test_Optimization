@@ -12,6 +12,7 @@ class ProjectCreate(BaseModel):
     description: str | None = None
     repo_type: str  # "local" or "github"
     repo_url: str   # local path or GitHub URL
+    force_init_git: bool = False
 
     @field_validator("name")
     @classmethod

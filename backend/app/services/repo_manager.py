@@ -428,15 +428,20 @@ def list_repo_dirs(repo_path: Path, relative_path: str = "") -> list[dict]:
     return dirs
 
 
+NO_GIT_ERROR_PREFIX = "NO_GIT:"
+
+
 def validate_local_repo(path: str) -> tuple[bool, str]:
-    """Check that a local path is a git repo with existing test automation."""
+    """Check that a local path is a directory with existing test automation.
+
+    Returns a distinct error prefix (NO_GIT:) when .git is missing so
+    the caller can offer to run git init instead of hard-failing.
+    """
     repo_path = Path(path)
     if not repo_path.exists():
         return False, f"Path does not exist: {path}"
     if not repo_path.is_dir():
         return False, f"Path is not a directory: {path}"
-    if not (repo_path / ".git").is_dir():
-        return False, f"Path is not a git repository (no .git directory): {path}"
 
     has_tests, detail = detect_test_automation(repo_path)
     if not has_tests:
@@ -446,6 +451,32 @@ def validate_local_repo(path: str) -> tuple[bool, str]:
             "already contains test files, test directories (e.g. tests/, __tests__/, spec/), "
             "or test framework configuration (e.g. pytest.ini, jest.config.*, playwright.config.*)."
         )
+
+    if not (repo_path / ".git").is_dir():
+        return False, (
+            f"{NO_GIT_ERROR_PREFIX}No git repository detected at: {path}. "
+            "You can initialize one to continue."
+        )
+
+    return True, path
+
+
+async def init_git_repo(path: str) -> tuple[bool, str]:
+    """Run git init in the given directory."""
+    repo_path = Path(path)
+    if not repo_path.is_dir():
+        return False, f"Path is not a directory: {path}"
+
+    proc = await asyncio.create_subprocess_exec(
+        "git", "init", str(repo_path),
+        stdout=asyncio.subprocess.PIPE,
+        stderr=asyncio.subprocess.PIPE,
+    )
+    stdout, stderr = await proc.communicate()
+
+    if proc.returncode != 0:
+        error_msg = stderr.decode().strip() if stderr else "git init failed"
+        return False, error_msg
 
     return True, path
 

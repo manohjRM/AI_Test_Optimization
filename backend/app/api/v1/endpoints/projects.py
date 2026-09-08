@@ -18,8 +18,10 @@ from app.schemas.project import (
     TestStats,
 )
 from app.services.repo_manager import (
+    NO_GIT_ERROR_PREFIX,
     clone_github_repo,
     count_test_files,
+    init_git_repo,
     list_repo_dirs,
     validate_cloned_repo,
     validate_local_repo,
@@ -65,13 +67,20 @@ async def create_project(
     if payload.repo_type == "local":
         valid, result = validate_local_repo(payload.repo_url)
         if not valid:
-            raise HTTPException(status_code=400, detail=result)
+            if result.startswith(NO_GIT_ERROR_PREFIX) and payload.force_init_git:
+                init_ok, init_result = await init_git_repo(payload.repo_url)
+                if not init_ok:
+                    raise HTTPException(status_code=400, detail=init_result)
+            elif result.startswith(NO_GIT_ERROR_PREFIX):
+                raise HTTPException(status_code=409, detail=result)
+            else:
+                raise HTTPException(status_code=400, detail=result)
         project = Project(
             name=payload.name,
             description=payload.description,
             repo_type=RepoType.LOCAL,
             repo_url=payload.repo_url,
-            local_path=result,
+            local_path=payload.repo_url,
             repo_status=RepoStatus.VALID,
         )
     else:

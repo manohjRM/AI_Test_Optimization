@@ -20,6 +20,7 @@ export interface ProjectCreate {
   description?: string;
   repo_type: "local" | "github";
   repo_url: string;
+  force_init_git?: boolean;
 }
 
 export interface ProjectUpdate {
