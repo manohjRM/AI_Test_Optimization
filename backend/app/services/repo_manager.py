@@ -543,11 +543,13 @@ def clone_github_repo(repo_url: str, clone_path: str) -> tuple[bool, str]:
 
     try:
         proc = subprocess.run(
-            ["git", "clone", repo_url, str(clone_dir)],
+            ["git", "clone", "--depth", "1", repo_url, str(clone_dir)],
             capture_output=True,
             text=True,
-            timeout=120,
+            timeout=600,
         )
+    except subprocess.TimeoutExpired:
+        return False, "Clone timed out after 10 minutes. Try a smaller repo or check your network."
     except Exception as e:
         return False, f"git clone failed: {e}"
 
