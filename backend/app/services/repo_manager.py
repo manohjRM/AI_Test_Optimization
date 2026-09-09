@@ -531,6 +531,8 @@ def init_git_repo(path: str) -> tuple[bool, str]:
 
 def clone_github_repo(repo_url: str, clone_path: str, git_token: str | None = None) -> tuple[bool, str]:
     """Clone a GitHub repository into the user-specified directory."""
+    import base64
+    import os
     import subprocess
 
     clone_dir = Path(clone_path)
@@ -543,8 +545,11 @@ def clone_github_repo(repo_url: str, clone_path: str, git_token: str | None = No
 
     cmd = ["git"]
     if git_token:
-        cmd += ["-c", f"http.extraHeader=Authorization: Bearer {git_token}"]
+        b64 = base64.b64encode(f"x-access-token:{git_token}".encode()).decode()
+        cmd += ["-c", f"http.extraHeader=Authorization: Basic {b64}"]
     cmd += ["clone", "--depth", "1", repo_url, str(clone_dir)]
+
+    env = {**os.environ, "GIT_TERMINAL_PROMPT": "0"}
 
     try:
         proc = subprocess.run(
@@ -552,6 +557,7 @@ def clone_github_repo(repo_url: str, clone_path: str, git_token: str | None = No
             capture_output=True,
             text=True,
             timeout=600,
+            env=env,
         )
     except subprocess.TimeoutExpired:
         return False, "Clone timed out after 10 minutes. Try a smaller repo or check your network."
