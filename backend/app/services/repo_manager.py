@@ -541,14 +541,14 @@ def clone_github_repo(repo_url: str, clone_path: str, git_token: str | None = No
 
     clone_dir.mkdir(parents=True, exist_ok=True)
 
-    clone_url = repo_url
+    cmd = ["git"]
     if git_token:
-        if clone_url.startswith("https://"):
-            clone_url = clone_url.replace("https://", f"https://{git_token}@", 1)
+        cmd += ["-c", f"http.extraHeader=Authorization: Bearer {git_token}"]
+    cmd += ["clone", "--depth", "1", repo_url, str(clone_dir)]
 
     try:
         proc = subprocess.run(
-            ["git", "clone", "--depth", "1", clone_url, str(clone_dir)],
+            cmd,
             capture_output=True,
             text=True,
             timeout=600,
