@@ -383,7 +383,7 @@ export default function NewProject() {
                   placeholder={
                     repoType === "local"
                       ? "C:\\Projects\\my-app  or  /home/user/my-app"
-                      : "https://github.com/owner/repo.git"
+                      : "git@github.com:owner/repo.git  or  https://github.com/owner/repo.git"
                   }
                   required
                   className="flex-1 rounded-lg border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-900 px-3 py-2 text-sm font-mono focus:outline-none focus:ring-2 focus:ring-blue-500"
@@ -401,7 +401,7 @@ export default function NewProject() {
               <p className="mt-1.5 text-xs text-zinc-400 dark:text-zinc-500">
                 {repoType === "local"
                   ? "The directory must contain a .git folder (be a git repository)."
-                  : "Use HTTPS URL for public repos."}
+                  : "SSH (git@) uses your local SSH keys. HTTPS needs a token for private repos."}
               </p>
             </div>
 
@@ -437,28 +437,30 @@ export default function NewProject() {
                   </p>
                 </div>
 
-                <div>
-                  <label
-                    htmlFor="git-token"
-                    className="block text-sm font-medium mb-1.5"
-                  >
-                    Access Token
-                    <span className="ml-2 text-xs text-zinc-400 font-normal">
-                      (required for private repos)
-                    </span>
-                  </label>
-                  <input
-                    id="git-token"
-                    type="password"
-                    value={gitToken}
-                    onChange={(e) => setGitToken(e.target.value)}
-                    placeholder="ghp_xxxx or your PAT"
-                    className="w-full rounded-lg border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-900 px-3 py-2 text-sm font-mono focus:outline-none focus:ring-2 focus:ring-blue-500"
-                  />
-                  <p className="mt-1.5 text-xs text-zinc-400 dark:text-zinc-500">
-                    Leave empty for public repos.
-                  </p>
-                </div>
+                {!repoUrl.trim().startsWith("git@") && (
+                  <div>
+                    <label
+                      htmlFor="git-token"
+                      className="block text-sm font-medium mb-1.5"
+                    >
+                      Access Token
+                      <span className="ml-2 text-xs text-zinc-400 font-normal">
+                        (for private HTTPS repos)
+                      </span>
+                    </label>
+                    <input
+                      id="git-token"
+                      type="password"
+                      value={gitToken}
+                      onChange={(e) => setGitToken(e.target.value)}
+                      placeholder="ghp_xxxx or fine-grained token"
+                      className="w-full rounded-lg border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-900 px-3 py-2 text-sm font-mono focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    />
+                    <p className="mt-1.5 text-xs text-zinc-400 dark:text-zinc-500">
+                      Not needed for SSH URLs or public repos.
+                    </p>
+                  </div>
+                )}
               </div>
             )}
           </div>
