@@ -529,7 +529,7 @@ def init_git_repo(path: str) -> tuple[bool, str]:
     return True, path
 
 
-def clone_github_repo(repo_url: str, clone_path: str) -> tuple[bool, str]:
+def clone_github_repo(repo_url: str, clone_path: str, git_token: str | None = None) -> tuple[bool, str]:
     """Clone a GitHub repository into the user-specified directory."""
     import subprocess
 
@@ -541,9 +541,14 @@ def clone_github_repo(repo_url: str, clone_path: str) -> tuple[bool, str]:
 
     clone_dir.mkdir(parents=True, exist_ok=True)
 
+    clone_url = repo_url
+    if git_token:
+        if clone_url.startswith("https://"):
+            clone_url = clone_url.replace("https://", f"https://{git_token}@", 1)
+
     try:
         proc = subprocess.run(
-            ["git", "clone", "--depth", "1", repo_url, str(clone_dir)],
+            ["git", "clone", "--depth", "1", clone_url, str(clone_dir)],
             capture_output=True,
             text=True,
             timeout=600,

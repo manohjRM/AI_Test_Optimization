@@ -63,7 +63,7 @@ async def create_project(
                 detail="clone_path is required for GitHub repos — select where to clone.",
             )
 
-        clone_ok, clone_result = clone_github_repo(payload.repo_url, payload.clone_path)
+        clone_ok, clone_result = clone_github_repo(payload.repo_url, payload.clone_path, payload.git_token)
         if not clone_ok:
             raise HTTPException(status_code=400, detail=clone_result)
 

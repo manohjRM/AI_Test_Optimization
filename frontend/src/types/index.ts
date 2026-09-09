@@ -21,6 +21,7 @@ export interface ProjectCreate {
   repo_type: "local" | "github";
   repo_url: string;
   clone_path?: string;
+  git_token?: string;
   force_init_git?: boolean;
 }
 

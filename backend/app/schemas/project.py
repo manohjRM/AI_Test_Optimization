@@ -13,6 +13,7 @@ class ProjectCreate(BaseModel):
     repo_type: str  # "local" or "github"
     repo_url: str   # local path or GitHub URL
     clone_path: str | None = None  # where to clone GitHub repos locally
+    git_token: str | None = None   # PAT for private repos
     force_init_git: bool = False
 
     @field_validator("name")

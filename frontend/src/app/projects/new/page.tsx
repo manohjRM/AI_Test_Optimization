@@ -222,6 +222,7 @@ export default function NewProject() {
   const [repoType, setRepoType] = useState<"local" | "github">("local");
   const [repoUrl, setRepoUrl] = useState("");
   const [clonePath, setClonePath] = useState("");
+  const [gitToken, setGitToken] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [showBrowser, setShowBrowser] = useState(false);
@@ -237,6 +238,7 @@ export default function NewProject() {
       repo_type: repoType,
       repo_url: repoUrl.trim(),
       clone_path: repoType === "github" ? clonePath.trim() || undefined : undefined,
+      git_token: repoType === "github" && gitToken.trim() ? gitToken.trim() : undefined,
       force_init_git: forceGit,
     };
 
@@ -404,6 +406,7 @@ export default function NewProject() {
             </div>
 
             {repoType === "github" && (
+              <>
               <div className="mt-4">
                 <label
                   htmlFor="clone-path"
@@ -433,6 +436,30 @@ export default function NewProject() {
                   Select an empty folder or a new path — the repo will be cloned here.
                 </p>
               </div>
+
+              <div className="mt-4">
+                <label
+                  htmlFor="git-token"
+                  className="block text-sm font-medium mb-1.5"
+                >
+                  Access Token
+                  <span className="ml-2 text-xs text-zinc-400 font-normal">
+                    (required for private repos)
+                  </span>
+                </label>
+                <input
+                  id="git-token"
+                  type="password"
+                  value={gitToken}
+                  onChange={(e) => setGitToken(e.target.value)}
+                  placeholder="ghp_xxxx or your PAT"
+                  className="w-full rounded-lg border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-900 px-3 py-2 text-sm font-mono focus:outline-none focus:ring-2 focus:ring-blue-500"
+                />
+                <p className="mt-1.5 text-xs text-zinc-400 dark:text-zinc-500">
+                  Leave empty for public repos. For private repos, use a GitHub Personal Access Token.
+                </p>
+              </div>
+              </>
             )}
           </div>
 
