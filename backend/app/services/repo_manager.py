@@ -54,7 +54,19 @@ def _has_test_files_in_dir(directory: Path) -> bool:
     for pattern in TEST_FILE_PATTERNS:
         if any(directory.rglob(pattern)):
             return True
+    for java_file in directory.rglob("*.java"):
+        if _has_test_annotation(java_file):
+            return True
     return False
+
+
+def _has_test_annotation(java_file: Path) -> bool:
+    """Check if a .java file contains @Test annotations (JUnit/TestNG)."""
+    try:
+        content = java_file.read_text(encoding="utf-8", errors="replace")
+        return "@Test" in content
+    except OSError:
+        return False
 
 
 def detect_test_automation(repo_path: Path) -> tuple[bool, str | None]:
@@ -130,6 +142,7 @@ PATTERN_FRAMEWORK_MAP: dict[str, str] = {
     "*.cy.jsx": "cypress",
     "*.feature": "cucumber",
     "*Test.java": "junit",
+    "*.java (@Test)": "junit",
     "*Tests.cs": "nunit/xunit",
 }
 
@@ -306,6 +319,19 @@ def _discover_test_files(
                 seen_files.update(matches)
                 test_dirs.add(display_name)
                 dir_to_files.setdefault(display_name, []).extend(matches)
+
+        java_matches = [
+            p for p in search_dir.rglob("*.java")
+            if p.is_file()
+            and _is_project_path(p.relative_to(repo_path))
+            and p not in seen_files
+            and _has_test_annotation(p)
+        ]
+        if java_matches:
+            breakdown["*.java (@Test)"] = breakdown.get("*.java (@Test)", 0) + len(java_matches)
+            seen_files.update(java_matches)
+            test_dirs.add(display_name)
+            dir_to_files.setdefault(display_name, []).extend(java_matches)
 
     # Priority 1: user-specified test path
     if test_path:
