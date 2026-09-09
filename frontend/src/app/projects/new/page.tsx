@@ -221,9 +221,11 @@ export default function NewProject() {
   const [description, setDescription] = useState("");
   const [repoType, setRepoType] = useState<"local" | "github">("local");
   const [repoUrl, setRepoUrl] = useState("");
+  const [clonePath, setClonePath] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [showBrowser, setShowBrowser] = useState(false);
+  const [showCloneBrowser, setShowCloneBrowser] = useState(false);
 
   async function submitProject(forceGit: boolean) {
     setError(null);
@@ -234,6 +236,7 @@ export default function NewProject() {
       description: description.trim() || undefined,
       repo_type: repoType,
       repo_url: repoUrl.trim(),
+      clone_path: repoType === "github" ? clonePath.trim() || undefined : undefined,
       force_init_git: forceGit,
     };
 
@@ -266,7 +269,10 @@ export default function NewProject() {
     await submitProject(false);
   }
 
-  const isFormValid = name.trim().length > 0 && repoUrl.trim().length > 0;
+  const isFormValid =
+    name.trim().length > 0 &&
+    repoUrl.trim().length > 0 &&
+    (repoType === "local" || clonePath.trim().length > 0);
 
   return (
     <main className="flex-1 flex flex-col">
@@ -393,9 +399,41 @@ export default function NewProject() {
               <p className="mt-1.5 text-xs text-zinc-400 dark:text-zinc-500">
                 {repoType === "local"
                   ? "The directory must contain a .git folder (be a git repository)."
-                  : "The repo will be cloned to the server. Use HTTPS URL for public repos."}
+                  : "Use HTTPS URL for public repos."}
               </p>
             </div>
+
+            {repoType === "github" && (
+              <div className="mt-4">
+                <label
+                  htmlFor="clone-path"
+                  className="block text-sm font-medium mb-1.5"
+                >
+                  Clone Destination <span className="text-red-500">*</span>
+                </label>
+                <div className="flex gap-2">
+                  <input
+                    id="clone-path"
+                    type="text"
+                    value={clonePath}
+                    onChange={(e) => setClonePath(e.target.value)}
+                    placeholder="C:\Projects\my-repo  — folder where the repo will be cloned"
+                    required
+                    className="flex-1 rounded-lg border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-900 px-3 py-2 text-sm font-mono focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowCloneBrowser(true)}
+                    className="shrink-0 rounded-lg border border-zinc-300 dark:border-zinc-700 px-3 py-2 text-sm font-medium hover:bg-zinc-50 dark:hover:bg-zinc-800 transition-colors"
+                  >
+                    Browse
+                  </button>
+                </div>
+                <p className="mt-1.5 text-xs text-zinc-400 dark:text-zinc-500">
+                  Select an empty folder or a new path — the repo will be cloned here.
+                </p>
+              </div>
+            )}
           </div>
 
           <div className="flex gap-3 pt-2">
@@ -420,6 +458,13 @@ export default function NewProject() {
         <FolderPickerModal
           onSelect={(path) => setRepoUrl(path)}
           onClose={() => setShowBrowser(false)}
+        />
+      )}
+
+      {showCloneBrowser && (
+        <FolderPickerModal
+          onSelect={(path) => setClonePath(path)}
+          onClose={() => setShowCloneBrowser(false)}
         />
       )}
     </main>

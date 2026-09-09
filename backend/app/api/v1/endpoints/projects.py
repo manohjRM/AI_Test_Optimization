@@ -4,7 +4,7 @@
 import uuid
 from pathlib import Path
 
-from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Query
+from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -26,45 +26,15 @@ from app.services.repo_manager import (
     count_test_files,
     init_git_repo,
     list_repo_dirs,
-    validate_cloned_repo,
     validate_local_repo,
 )
 
 router = APIRouter()
 
 
-async def _clone_and_update(project_id: uuid.UUID, repo_url: str) -> None:
-    """Background task: clone a GitHub repo and update project status."""
-    from app.db.session import async_session
-
-    async with async_session() as db:
-        project = await db.get(Project, project_id)
-        if not project:
-            return
-
-        clone_ok, clone_result = await clone_github_repo(repo_url, str(project_id))
-        if not clone_ok:
-            project.repo_status = RepoStatus.ERROR
-            project.repo_error = clone_result
-            await db.commit()
-            return
-
-        tests_ok, tests_result = await validate_cloned_repo(clone_result)
-        if not tests_ok:
-            project.repo_status = RepoStatus.ERROR
-            project.repo_error = tests_result
-        else:
-            project.local_path = tests_result
-            project.repo_status = RepoStatus.CLONED
-            project.repo_error = None
-
-        await db.commit()
-
-
 @router.post("/", response_model=ProjectRead, status_code=201)
 async def create_project(
     payload: ProjectCreate,
-    background_tasks: BackgroundTasks,
     db: AsyncSession = Depends(get_db),
 ) -> Project:
     if payload.repo_type == "local":
@@ -87,21 +57,28 @@ async def create_project(
             repo_status=RepoStatus.VALID,
         )
     else:
+        if not payload.clone_path:
+            raise HTTPException(
+                status_code=400,
+                detail="clone_path is required for GitHub repos — select where to clone.",
+            )
+
+        clone_ok, clone_result = clone_github_repo(payload.repo_url, payload.clone_path)
+        if not clone_ok:
+            raise HTTPException(status_code=400, detail=clone_result)
+
         project = Project(
             name=payload.name,
             description=payload.description,
             repo_type=RepoType.GITHUB,
             repo_url=payload.repo_url,
-            repo_status=RepoStatus.CLONING,
+            local_path=clone_result,
+            repo_status=RepoStatus.CLONED,
         )
 
     db.add(project)
     await db.commit()
     await db.refresh(project)
-
-    if payload.repo_type == "github":
-        background_tasks.add_task(_clone_and_update, project.id, payload.repo_url)
-
     return project
 
 

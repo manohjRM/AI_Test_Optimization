@@ -529,25 +529,30 @@ def init_git_repo(path: str) -> tuple[bool, str]:
     return True, path
 
 
-async def clone_github_repo(repo_url: str, project_id: str) -> tuple[bool, str]:
-    """Clone a GitHub repository into the managed workspace directory."""
-    workspace = Path(settings.REPO_WORKSPACE_DIR)
-    workspace.mkdir(parents=True, exist_ok=True)
+def clone_github_repo(repo_url: str, clone_path: str) -> tuple[bool, str]:
+    """Clone a GitHub repository into the user-specified directory."""
+    import subprocess
 
-    clone_dir = workspace / project_id
-    if clone_dir.exists():
-        return True, str(clone_dir)
+    clone_dir = Path(clone_path)
+    if clone_dir.exists() and any(clone_dir.iterdir()):
+        if (clone_dir / ".git").is_dir():
+            return True, str(clone_dir)
+        return False, f"Directory is not empty and is not a git repo: {clone_path}"
 
-    proc = await asyncio.create_subprocess_exec(
-        "git", "clone", repo_url, str(clone_dir),
-        stdout=asyncio.subprocess.PIPE,
-        stderr=asyncio.subprocess.PIPE,
-    )
-    stdout, stderr = await proc.communicate()
+    clone_dir.mkdir(parents=True, exist_ok=True)
+
+    try:
+        proc = subprocess.run(
+            ["git", "clone", repo_url, str(clone_dir)],
+            capture_output=True,
+            text=True,
+            timeout=120,
+        )
+    except Exception as e:
+        return False, f"git clone failed: {e}"
 
     if proc.returncode != 0:
-        error_msg = stderr.decode().strip() if stderr else "Unknown clone error"
-        return False, error_msg
+        return False, proc.stderr.strip() or "git clone failed"
 
     return True, str(clone_dir)
 

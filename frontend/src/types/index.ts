@@ -20,6 +20,7 @@ export interface ProjectCreate {
   description?: string;
   repo_type: "local" | "github";
   repo_url: string;
+  clone_path?: string;
   force_init_git?: boolean;
 }
 
