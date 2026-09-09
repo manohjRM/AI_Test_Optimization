@@ -406,60 +406,60 @@ export default function NewProject() {
             </div>
 
             {repoType === "github" && (
-              <>
-              <div className="mt-4">
-                <label
-                  htmlFor="clone-path"
-                  className="block text-sm font-medium mb-1.5"
-                >
-                  Clone Destination <span className="text-red-500">*</span>
-                </label>
-                <div className="flex gap-2">
-                  <input
-                    id="clone-path"
-                    type="text"
-                    value={clonePath}
-                    onChange={(e) => setClonePath(e.target.value)}
-                    placeholder="C:\Projects\my-repo  — folder where the repo will be cloned"
-                    required
-                    className="flex-1 rounded-lg border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-900 px-3 py-2 text-sm font-mono focus:outline-none focus:ring-2 focus:ring-blue-500"
-                  />
-                  <button
-                    type="button"
-                    onClick={() => setShowCloneBrowser(true)}
-                    className="shrink-0 rounded-lg border border-zinc-300 dark:border-zinc-700 px-3 py-2 text-sm font-medium hover:bg-zinc-50 dark:hover:bg-zinc-800 transition-colors"
+              <div className="mt-4 space-y-4">
+                <div>
+                  <label
+                    htmlFor="clone-path"
+                    className="block text-sm font-medium mb-1.5"
                   >
-                    Browse
-                  </button>
+                    Clone Destination <span className="text-red-500">*</span>
+                  </label>
+                  <div className="flex gap-2">
+                    <input
+                      id="clone-path"
+                      type="text"
+                      value={clonePath}
+                      onChange={(e) => setClonePath(e.target.value)}
+                      placeholder="Select a folder where the repo will be cloned"
+                      required
+                      className="flex-1 rounded-lg border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-900 px-3 py-2 text-sm font-mono focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setShowCloneBrowser(true)}
+                      className="shrink-0 rounded-lg border border-zinc-300 dark:border-zinc-700 px-3 py-2 text-sm font-medium hover:bg-zinc-50 dark:hover:bg-zinc-800 transition-colors"
+                    >
+                      Browse
+                    </button>
+                  </div>
+                  <p className="mt-1.5 text-xs text-zinc-400 dark:text-zinc-500">
+                    Select an empty folder or a new path.
+                  </p>
                 </div>
-                <p className="mt-1.5 text-xs text-zinc-400 dark:text-zinc-500">
-                  Select an empty folder or a new path — the repo will be cloned here.
-                </p>
-              </div>
 
-              <div className="mt-4">
-                <label
-                  htmlFor="git-token"
-                  className="block text-sm font-medium mb-1.5"
-                >
-                  Access Token
-                  <span className="ml-2 text-xs text-zinc-400 font-normal">
-                    (required for private repos)
-                  </span>
-                </label>
-                <input
-                  id="git-token"
-                  type="password"
-                  value={gitToken}
-                  onChange={(e) => setGitToken(e.target.value)}
-                  placeholder="ghp_xxxx or your PAT"
-                  className="w-full rounded-lg border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-900 px-3 py-2 text-sm font-mono focus:outline-none focus:ring-2 focus:ring-blue-500"
-                />
-                <p className="mt-1.5 text-xs text-zinc-400 dark:text-zinc-500">
-                  Leave empty for public repos. For private repos, use a GitHub Personal Access Token.
-                </p>
+                <div>
+                  <label
+                    htmlFor="git-token"
+                    className="block text-sm font-medium mb-1.5"
+                  >
+                    Access Token
+                    <span className="ml-2 text-xs text-zinc-400 font-normal">
+                      (required for private repos)
+                    </span>
+                  </label>
+                  <input
+                    id="git-token"
+                    type="password"
+                    value={gitToken}
+                    onChange={(e) => setGitToken(e.target.value)}
+                    placeholder="ghp_xxxx or your PAT"
+                    className="w-full rounded-lg border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-900 px-3 py-2 text-sm font-mono focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  />
+                  <p className="mt-1.5 text-xs text-zinc-400 dark:text-zinc-500">
+                    Leave empty for public repos.
+                  </p>
+                </div>
               </div>
-              </>
             )}
           </div>
 
