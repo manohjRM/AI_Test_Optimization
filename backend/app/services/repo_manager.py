@@ -21,7 +21,7 @@ TEST_CONFIG_FILES = [
     ".mocharc.yml", ".mocharc.json", ".mocharc.js",
     "karma.conf.js",
     "phpunit.xml", "phpunit.xml.dist",
-    "build.gradle", "pom.xml",
+    "build.gradle", "build.gradle.kts", "pom.xml",
 ]
 
 TEST_FILE_PATTERNS = [
@@ -30,7 +30,8 @@ TEST_FILE_PATTERNS = [
     "*.spec.ts", "*.spec.tsx", "*.spec.js", "*.spec.jsx",
     "*.cy.ts", "*.cy.js", "*.cy.tsx", "*.cy.jsx",
     "*.feature",
-    "*Test.java", "*Tests.cs",
+    "*Test.java", "*Test.kt",
+    "*Tests.cs",
 ]
 
 EXCLUDED_DIRS = {
@@ -54,16 +55,16 @@ def _has_test_files_in_dir(directory: Path) -> bool:
     for pattern in TEST_FILE_PATTERNS:
         if any(directory.rglob(pattern)):
             return True
-    for java_file in directory.rglob("*.java"):
-        if _has_test_annotation(java_file):
+    for jvm_file in [*directory.rglob("*.java"), *directory.rglob("*.kt")]:
+        if _has_test_annotation(jvm_file):
             return True
     return False
 
 
-def _has_test_annotation(java_file: Path) -> bool:
-    """Check if a .java file contains @Test annotations (JUnit/TestNG)."""
+def _has_test_annotation(file_path: Path) -> bool:
+    """Check if a .java or .kt file contains @Test annotations (JUnit/TestNG)."""
     try:
-        content = java_file.read_text(encoding="utf-8", errors="replace")
+        content = file_path.read_text(encoding="utf-8", errors="replace")
         return "@Test" in content
     except OSError:
         return False
@@ -121,7 +122,7 @@ FRAMEWORK_INDICATORS: dict[str, list[str]] = {
     "mocha": [".mocharc.yml", ".mocharc.json", ".mocharc.js"],
     "karma": ["karma.conf.js"],
     "phpunit": ["phpunit.xml", "phpunit.xml.dist"],
-    "junit": ["build.gradle", "pom.xml"],
+    "junit": ["build.gradle", "build.gradle.kts", "pom.xml"],
 }
 
 PATTERN_FRAMEWORK_MAP: dict[str, str] = {
@@ -142,7 +143,9 @@ PATTERN_FRAMEWORK_MAP: dict[str, str] = {
     "*.cy.jsx": "cypress",
     "*.feature": "cucumber",
     "*Test.java": "junit",
+    "*Test.kt": "junit",
     "*.java (@Test)": "junit",
+    "*.kt (@Test)": "junit",
     "*Tests.cs": "nunit/xunit",
 }
 
@@ -274,7 +277,7 @@ def _extract_test_names(file_path: Path) -> list[str]:
             names.append(f"[describe] {desc_name}")
         for _, test_name in tests:
             names.append(test_name)
-    elif suffix == ".java":
+    elif suffix in (".java", ".kt"):
         names = _JAVA_TEST_RE.findall(content)
     elif suffix == ".go":
         names = _GO_TEST_RE.findall(content)
@@ -320,18 +323,19 @@ def _discover_test_files(
                 test_dirs.add(display_name)
                 dir_to_files.setdefault(display_name, []).extend(matches)
 
-        java_matches = [
-            p for p in search_dir.rglob("*.java")
-            if p.is_file()
-            and _is_project_path(p.relative_to(repo_path))
-            and p not in seen_files
-            and _has_test_annotation(p)
-        ]
-        if java_matches:
-            breakdown["*.java (@Test)"] = breakdown.get("*.java (@Test)", 0) + len(java_matches)
-            seen_files.update(java_matches)
-            test_dirs.add(display_name)
-            dir_to_files.setdefault(display_name, []).extend(java_matches)
+        for ext, label in [("*.java", "*.java (@Test)"), ("*.kt", "*.kt (@Test)")]:
+            annotation_matches = [
+                p for p in search_dir.rglob(ext)
+                if p.is_file()
+                and _is_project_path(p.relative_to(repo_path))
+                and p not in seen_files
+                and _has_test_annotation(p)
+            ]
+            if annotation_matches:
+                breakdown[label] = breakdown.get(label, 0) + len(annotation_matches)
+                seen_files.update(annotation_matches)
+                test_dirs.add(display_name)
+                dir_to_files.setdefault(display_name, []).extend(annotation_matches)
 
     # Priority 1: user-specified test path
     if test_path:
