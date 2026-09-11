@@ -230,7 +230,7 @@ async def generate_summary(
     project_id: uuid.UUID,
     db: AsyncSession = Depends(get_db),
 ) -> Project:
-    from app.services.analyzer import generate_app_summary
+    from app.services.analyzer import generate_summaries
     from app.services.llm import get_configured_model
 
     project = await db.get(Project, project_id)
@@ -247,12 +247,13 @@ async def generate_summary(
             detail="LLM is not configured. Go to Settings to set up your AI provider.",
         )
 
-    summary = await generate_app_summary(
+    summaries = await generate_summaries(
         repo_path=project.local_path,
         test_path=project.test_path,
         llm=llm,
     )
-    project.app_summary = summary
+    project.business_summary = summaries["business_summary"]
+    project.functional_summary = summaries["functional_summary"]
     await db.commit()
     await db.refresh(project)
     return project
@@ -294,15 +295,16 @@ async def analyze_tests(
         llm=llm,
     )
 
-    from app.services.analyzer import generate_app_summary
+    from app.services.analyzer import generate_summaries
 
     try:
-        summary = await generate_app_summary(
+        summaries = await generate_summaries(
             repo_path=project.local_path,
             test_path=project.test_path,
             llm=llm,
         )
-        project.app_summary = summary
+        project.business_summary = summaries["business_summary"]
+        project.functional_summary = summaries["functional_summary"]
         await db.commit()
         await db.refresh(project)
     except Exception:

@@ -63,7 +63,8 @@ class ProjectRead(BaseModel):
     repo_status: str
     repo_error: str | None
     test_path: str | None
-    app_summary: str | None
+    business_summary: str | None
+    functional_summary: str | None
     created_at: datetime
     updated_at: datetime
 

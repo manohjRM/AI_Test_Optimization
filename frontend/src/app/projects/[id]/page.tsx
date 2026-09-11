@@ -226,6 +226,7 @@ export default function ProjectDetail() {
   // Summary
   const [summaryGenerating, setSummaryGenerating] = useState(false);
   const [summaryError, setSummaryError] = useState<string | null>(null);
+  const [summaryTab, setSummaryTab] = useState<"business" | "functional">("business");
 
   // Analysis
   const [analysisResult, setAnalysisResult] = useState<AnalysisResult | null>(null);
@@ -579,7 +580,7 @@ export default function ProjectDetail() {
                 disabled={summaryGenerating}
                 className="rounded-lg border border-blue-300 dark:border-blue-700 px-4 py-1.5 text-xs font-medium text-blue-600 dark:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-950 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
               >
-                {summaryGenerating ? "Generating..." : project.app_summary ? "Regenerate" : "Generate Summary"}
+                {summaryGenerating ? "Generating..." : (project.business_summary || project.functional_summary) ? "Regenerate" : "Generate Summary"}
               </button>
             </div>
 
@@ -593,20 +594,61 @@ export default function ProjectDetail() {
               <div className="flex items-center gap-3 py-4">
                 <div className="h-4 w-4 border-2 border-blue-500 border-t-transparent rounded-full animate-spin" />
                 <p className="text-sm text-zinc-500">
-                  Generating application summary from test suite...
+                  Generating business and functional summaries from test suite...
                 </p>
               </div>
             )}
 
-            {project.app_summary && !summaryGenerating && (
-              <div className="prose prose-sm dark:prose-invert max-w-none">
-                <div className="text-sm text-zinc-700 dark:text-zinc-300 whitespace-pre-wrap">
-                  {project.app_summary}
+            {(project.business_summary || project.functional_summary) && !summaryGenerating && (
+              <div>
+                <div className="flex border-b border-zinc-200 dark:border-zinc-700 mb-3">
+                  <button
+                    onClick={() => setSummaryTab("business")}
+                    className={`px-4 py-2 text-xs font-medium transition-colors ${
+                      summaryTab === "business"
+                        ? "border-b-2 border-blue-600 text-blue-600 dark:text-blue-400 dark:border-blue-400"
+                        : "text-zinc-500 dark:text-zinc-400 hover:text-zinc-700 dark:hover:text-zinc-300"
+                    }`}
+                  >
+                    Business Summary
+                  </button>
+                  <button
+                    onClick={() => setSummaryTab("functional")}
+                    className={`px-4 py-2 text-xs font-medium transition-colors ${
+                      summaryTab === "functional"
+                        ? "border-b-2 border-blue-600 text-blue-600 dark:text-blue-400 dark:border-blue-400"
+                        : "text-zinc-500 dark:text-zinc-400 hover:text-zinc-700 dark:hover:text-zinc-300"
+                    }`}
+                  >
+                    Functional Summary
+                  </button>
                 </div>
+
+                {summaryTab === "business" && (
+                  <div>
+                    <p className="text-xs text-zinc-400 dark:text-zinc-500 mb-2">
+                      Used to validate acceptance criteria and ensure changes are appropriate for this application.
+                    </p>
+                    <div className="text-sm text-zinc-700 dark:text-zinc-300 whitespace-pre-wrap">
+                      {project.business_summary || "Not yet generated."}
+                    </div>
+                  </div>
+                )}
+
+                {summaryTab === "functional" && (
+                  <div>
+                    <p className="text-xs text-zinc-400 dark:text-zinc-500 mb-2">
+                      Used to create new tests and validate existing tests against acceptance criteria.
+                    </p>
+                    <div className="text-sm text-zinc-700 dark:text-zinc-300 whitespace-pre-wrap">
+                      {project.functional_summary || "Not yet generated."}
+                    </div>
+                  </div>
+                )}
               </div>
             )}
 
-            {!project.app_summary && !summaryGenerating && !summaryError && (
+            {!project.business_summary && !project.functional_summary && !summaryGenerating && !summaryError && (
               <p className="text-sm text-zinc-400">
                 No summary generated yet. Click &quot;Generate Summary&quot; to analyze the test suite.
               </p>

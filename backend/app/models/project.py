@@ -41,7 +41,8 @@ class Project(Base):
     )
     repo_error: Mapped[str | None] = mapped_column(Text, nullable=True)
     test_path: Mapped[str | None] = mapped_column(String(1024), nullable=True)
-    app_summary: Mapped[str | None] = mapped_column(Text, nullable=True)
+    business_summary: Mapped[str | None] = mapped_column(Text, nullable=True)
+    functional_summary: Mapped[str | None] = mapped_column(Text, nullable=True)
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), default=lambda: datetime.now(timezone.utc)
     )

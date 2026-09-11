@@ -143,41 +143,52 @@ def get_analysis_graph():
     return _compiled_graph
 
 
-async def generate_app_summary(
-    repo_path: str,
-    test_path: str | None,
-    llm: BaseChatModel,
-) -> str:
-    """Generate a summary of the application based on its test suite."""
+def _build_test_context(repo_path: str, test_path: str | None) -> str:
+    """Build a formatted test context string from the repo's test tree."""
     stats = count_test_files(Path(repo_path), test_path=test_path)
     test_tree = stats.get("test_tree", [])
 
-    context_parts: list[str] = []
-    context_parts.append(f"Frameworks detected: {', '.join(stats.get('frameworks', []))}")
-    context_parts.append(f"Total test files: {stats.get('total_files', 0)}")
-    context_parts.append(f"Total test cases: {stats.get('total_tests', 0)}")
-    context_parts.append("")
+    parts: list[str] = []
+    parts.append(f"Frameworks detected: {', '.join(stats.get('frameworks', []))}")
+    parts.append(f"Total test files: {stats.get('total_files', 0)}")
+    parts.append(f"Total test cases: {stats.get('total_tests', 0)}")
+    parts.append("")
 
     for directory in test_tree:
-        context_parts.append(f"Directory: {directory['directory']}")
+        parts.append(f"Directory: {directory['directory']}")
         for file_info in directory["files"]:
-            context_parts.append(f"  File: {file_info['path']}")
+            parts.append(f"  File: {file_info['path']}")
             for test_name in file_info["tests"]:
-                context_parts.append(f"    - {test_name}")
-        context_parts.append("")
+                parts.append(f"    - {test_name}")
+        parts.append("")
 
-    test_context = "\n".join(context_parts)
+    return "\n".join(parts)
 
-    system_prompt = _load_prompt("summary_system.md")
-    user_template = _load_prompt("summary_user.md")
-    user_message = user_template.format(test_context=test_context)
 
-    response = await llm.ainvoke([
-        SystemMessage(content=system_prompt),
-        HumanMessage(content=user_message),
-    ])
+async def generate_summaries(
+    repo_path: str,
+    test_path: str | None,
+    llm: BaseChatModel,
+) -> dict[str, str]:
+    """Generate business and functional summaries from the test suite."""
+    test_context = _build_test_context(repo_path, test_path)
 
-    return response.content
+    business_sys = _load_prompt("business_summary_system.md")
+    business_user = _load_prompt("business_summary_user.md").format(test_context=test_context)
+
+    functional_sys = _load_prompt("functional_summary_system.md")
+    functional_user = _load_prompt("functional_summary_user.md").format(test_context=test_context)
+
+    import asyncio
+    business_resp, functional_resp = await asyncio.gather(
+        llm.ainvoke([SystemMessage(content=business_sys), HumanMessage(content=business_user)]),
+        llm.ainvoke([SystemMessage(content=functional_sys), HumanMessage(content=functional_user)]),
+    )
+
+    return {
+        "business_summary": business_resp.content,
+        "functional_summary": functional_resp.content,
+    }
 
 
 async def find_related_tests(

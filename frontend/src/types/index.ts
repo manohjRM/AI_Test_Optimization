@@ -11,7 +11,8 @@ export interface Project {
   repo_status: "pending" | "valid" | "cloning" | "cloned" | "error";
   repo_error: string | null;
   test_path: string | null;
-  app_summary: string | null;
+  business_summary: string | null;
+  functional_summary: string | null;
   created_at: string;
   updated_at: string;
 }
