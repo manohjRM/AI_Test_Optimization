@@ -100,9 +100,10 @@ def format_results(state: AnalysisState) -> dict:
             "suggestions": ["Try rephrasing the acceptance criteria"],
         }
 
+    _VALID_RELEVANCE = {"direct", "required changes", "no match"}
     for match in parsed.get("matches", []):
-        if match.get("relevance") not in ("direct", "partial", "related"):
-            match["relevance"] = "related"
+        if match.get("relevance") not in _VALID_RELEVANCE:
+            match["relevance"] = "no match"
 
     return {
         **state,
@@ -140,6 +141,43 @@ def get_analysis_graph():
     if _compiled_graph is None:
         _compiled_graph = build_analysis_graph()
     return _compiled_graph
+
+
+async def generate_app_summary(
+    repo_path: str,
+    test_path: str | None,
+    llm: BaseChatModel,
+) -> str:
+    """Generate a summary of the application based on its test suite."""
+    stats = count_test_files(Path(repo_path), test_path=test_path)
+    test_tree = stats.get("test_tree", [])
+
+    context_parts: list[str] = []
+    context_parts.append(f"Frameworks detected: {', '.join(stats.get('frameworks', []))}")
+    context_parts.append(f"Total test files: {stats.get('total_files', 0)}")
+    context_parts.append(f"Total test cases: {stats.get('total_tests', 0)}")
+    context_parts.append("")
+
+    for directory in test_tree:
+        context_parts.append(f"Directory: {directory['directory']}")
+        for file_info in directory["files"]:
+            context_parts.append(f"  File: {file_info['path']}")
+            for test_name in file_info["tests"]:
+                context_parts.append(f"    - {test_name}")
+        context_parts.append("")
+
+    test_context = "\n".join(context_parts)
+
+    system_prompt = _load_prompt("summary_system.md")
+    user_template = _load_prompt("summary_user.md")
+    user_message = user_template.format(test_context=test_context)
+
+    response = await llm.ainvoke([
+        SystemMessage(content=system_prompt),
+        HumanMessage(content=user_message),
+    ])
+
+    return response.content
 
 
 async def find_related_tests(

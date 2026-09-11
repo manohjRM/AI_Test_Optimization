@@ -6,8 +6,8 @@ You will receive:
 
 For each related test, explain WHY it's related and classify the relevance:
 - "direct": The test directly validates the acceptance criteria
-- "partial": The test covers part of the criteria or a closely related scenario
-- "related": The test is in the same functional area but doesn't directly validate the criteria
+- "required changes": The test gets impacted to the new acceptance criteria but have some changes required
+- "no match": No test matches the acceptance criteria, new tests need to be created for the given acceptance criteria
 
 Respond ONLY with valid JSON in this exact format:
 {
@@ -15,12 +15,12 @@ Respond ONLY with valid JSON in this exact format:
     {
       "file_path": "path/to/test_file.py",
       "test_name": "test_function_name",
-      "relevance": "direct|partial|related",
-      "explanation": "Why this test is related to the acceptance criteria"
+      "relevance": "direct|required changes|no match",
+      "explanation": "How the test relavent to the acceptance criteria"
     }
   ],
   "summary": "Brief summary of the analysis",
   "suggestions": ["Suggestion for improving test coverage based on the criteria"]
 }
 
-If no existing tests match the criteria, return an empty matches array with a summary explaining that no related tests were found and suggestions for what tests should be created.
+If no existing tests match the criteria, return an empty matches array with a summary explaining that no related tests were found and suggestions for what tests should be created. If direct match exists, then verify the acceptance criteria matches the steps provided. If test steps are matching then look for the negative scenarios implemented already. These scenarios should be developed as new test scripts to the existing repo. List down the list of missing scenario which needs to be included. 

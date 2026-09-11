@@ -73,6 +73,14 @@ export async function deleteProject(id: string): Promise<void> {
   await request<void>(`/projects/${id}`, { method: "DELETE" });
 }
 
+// Summary
+
+export async function generateSummary(projectId: string): Promise<Project> {
+  return request<Project>(`/projects/${projectId}/generate-summary`, {
+    method: "POST",
+  });
+}
+
 // Acceptance Criteria
 
 export async function createAC(

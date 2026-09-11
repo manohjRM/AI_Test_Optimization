@@ -16,6 +16,7 @@ import {
   listACs,
   deleteAC,
   analyzeTests,
+  generateSummary,
 } from "@/lib/api";
 import type { Project, TestStats, TestDirectory, TestFile, RepoDir, ACRead, AnalysisResult } from "@/types";
 
@@ -222,6 +223,10 @@ export default function ProjectDetail() {
   const [acSaving, setAcSaving] = useState(false);
   const [acError, setAcError] = useState<string | null>(null);
 
+  // Summary
+  const [summaryGenerating, setSummaryGenerating] = useState(false);
+  const [summaryError, setSummaryError] = useState<string | null>(null);
+
   // Analysis
   const [analysisResult, setAnalysisResult] = useState<AnalysisResult | null>(null);
   const [analyzingAcId, setAnalyzingAcId] = useState<string | null>(null);
@@ -349,12 +354,29 @@ export default function ProjectDetail() {
     try {
       const result = await analyzeTests(projectId, acId);
       setAnalysisResult(result);
+      const refreshed = await getProject(projectId);
+      setProject(refreshed);
     } catch (err) {
       setAnalysisError(
         err instanceof Error ? err.message : "Analysis failed"
       );
     } finally {
       setAnalyzingAcId(null);
+    }
+  }
+
+  async function handleGenerateSummary() {
+    setSummaryGenerating(true);
+    setSummaryError(null);
+    try {
+      const updated = await generateSummary(projectId);
+      setProject(updated);
+    } catch (err) {
+      setSummaryError(
+        err instanceof Error ? err.message : "Failed to generate summary"
+      );
+    } finally {
+      setSummaryGenerating(false);
     }
   }
 
@@ -546,6 +568,51 @@ export default function ProjectDetail() {
             new project.
           </p>
         </section>
+
+        {/* Application Summary */}
+        {isRepoReady && (
+          <section className="rounded-lg border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 p-5">
+            <div className="flex items-center justify-between mb-3">
+              <h2 className="text-sm font-semibold">Application Summary</h2>
+              <button
+                onClick={handleGenerateSummary}
+                disabled={summaryGenerating}
+                className="rounded-lg border border-blue-300 dark:border-blue-700 px-4 py-1.5 text-xs font-medium text-blue-600 dark:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-950 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+              >
+                {summaryGenerating ? "Generating..." : project.app_summary ? "Regenerate" : "Generate Summary"}
+              </button>
+            </div>
+
+            {summaryError && (
+              <p className="text-sm text-red-600 dark:text-red-400 mb-3">
+                {summaryError}
+              </p>
+            )}
+
+            {summaryGenerating && (
+              <div className="flex items-center gap-3 py-4">
+                <div className="h-4 w-4 border-2 border-blue-500 border-t-transparent rounded-full animate-spin" />
+                <p className="text-sm text-zinc-500">
+                  Generating application summary from test suite...
+                </p>
+              </div>
+            )}
+
+            {project.app_summary && !summaryGenerating && (
+              <div className="prose prose-sm dark:prose-invert max-w-none">
+                <div className="text-sm text-zinc-700 dark:text-zinc-300 whitespace-pre-wrap">
+                  {project.app_summary}
+                </div>
+              </div>
+            )}
+
+            {!project.app_summary && !summaryGenerating && !summaryError && (
+              <p className="text-sm text-zinc-400">
+                No summary generated yet. Click &quot;Generate Summary&quot; to analyze the test suite.
+              </p>
+            )}
+          </section>
+        )}
 
         {/* Test Suite — Stats + Explorer Tree */}
         {isRepoReady && (
@@ -769,24 +836,24 @@ export default function ProjectDetail() {
 
                 {analysisResult.matches.length > 0 && (
                   <div className="space-y-2">
-                    {(["direct", "partial", "related"] as const).map(
+                    {(["direct", "required changes", "no match"] as const).map(
                       (relevance) => {
                         const matches = analysisResult.matches.filter(
                           (m) => m.relevance === relevance
                         );
                         if (matches.length === 0) return null;
                         const colors = {
-                          direct:
+                          "direct":
                             "border-green-200 dark:border-green-800 bg-green-50 dark:bg-green-950",
-                          partial:
+                          "required changes":
                             "border-yellow-200 dark:border-yellow-800 bg-yellow-50 dark:bg-yellow-950",
-                          related:
-                            "border-zinc-200 dark:border-zinc-700 bg-zinc-50 dark:bg-zinc-800",
+                          "no match":
+                            "border-red-200 dark:border-red-800 bg-red-50 dark:bg-red-950",
                         };
                         const labels = {
-                          direct: "Direct Match",
-                          partial: "Partial Match",
-                          related: "Related",
+                          "direct": "Direct Match",
+                          "required changes": "Required Changes",
+                          "no match": "No Match",
                         };
                         return (
                           <div key={relevance}>

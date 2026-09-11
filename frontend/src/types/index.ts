@@ -11,6 +11,7 @@ export interface Project {
   repo_status: "pending" | "valid" | "cloning" | "cloned" | "error";
   repo_error: string | null;
   test_path: string | null;
+  app_summary: string | null;
   created_at: string;
   updated_at: string;
 }
@@ -118,7 +119,7 @@ export interface AnalysisRequest {
 export interface MatchedTest {
   file_path: string;
   test_name: string;
-  relevance: "direct" | "partial" | "related";
+  relevance: "direct" | "required changes" | "no match";
   explanation: string;
 }
 
