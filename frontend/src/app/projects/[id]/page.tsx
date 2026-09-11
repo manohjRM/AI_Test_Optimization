@@ -233,6 +233,7 @@ export default function ProjectDetail() {
   const [analysisResult, setAnalysisResult] = useState<AnalysisResult | null>(null);
   const [analyzingAcId, setAnalyzingAcId] = useState<string | null>(null);
   const [analysisError, setAnalysisError] = useState<string | null>(null);
+  const [resultsPanel, setResultsPanel] = useState<"covered" | "partial" | "missing" | null>(null);
 
   useEffect(() => {
     async function fetch() {
@@ -353,6 +354,7 @@ export default function ProjectDetail() {
     setAnalyzingAcId(acId);
     setAnalysisResult(null);
     setAnalysisError(null);
+    setResultsPanel(null);
     try {
       const result = await analyzeTests(projectId, acId);
       setAnalysisResult(result);
@@ -910,185 +912,228 @@ export default function ProjectDetail() {
               </p>
             )}
 
-            {analysisResult && !analyzingAcId && (
-              <div className="space-y-5">
-                <p className="text-sm text-zinc-600 dark:text-zinc-400">
-                  {analysisResult.summary}
-                </p>
+            {analysisResult && !analyzingAcId && (() => {
+              const directMatches = analysisResult.matches.filter((m) => m.relevance === "direct");
+              const changesNeeded = analysisResult.matches.filter((m) => m.relevance === "required changes");
+              const missingScenarios = analysisResult.missing_scenarios;
 
-                {/* Coverage Assessment */}
-                {analysisResult.coverage_assessment && (
+              return (
+                <div className="space-y-4">
+                  <p className="text-sm text-zinc-600 dark:text-zinc-400">
+                    {analysisResult.summary}
+                  </p>
+
+                  {/* Coverage cards — clickable */}
                   <div className="grid grid-cols-3 gap-3">
-                    <div className="rounded-lg bg-green-50 dark:bg-green-950 border border-green-200 dark:border-green-800 p-3">
-                      <p className="text-xs font-medium text-green-700 dark:text-green-300 mb-1">
-                        Covered ({analysisResult.coverage_assessment.covered.length})
+                    <button
+                      onClick={() => setResultsPanel(resultsPanel === "covered" ? null : "covered")}
+                      className={`rounded-lg border p-3 text-left transition-all ${
+                        resultsPanel === "covered"
+                          ? "border-green-500 dark:border-green-400 ring-2 ring-green-500/20 bg-green-50 dark:bg-green-950"
+                          : "border-green-200 dark:border-green-800 bg-green-50 dark:bg-green-950 hover:border-green-400 dark:hover:border-green-600"
+                      }`}
+                    >
+                      <p className="text-2xl font-bold text-green-700 dark:text-green-300">
+                        {directMatches.length}
                       </p>
-                      {analysisResult.coverage_assessment.covered.map((s, i) => (
-                        <p key={i} className="text-xs text-green-600 dark:text-green-400">{s}</p>
-                      ))}
-                      {analysisResult.coverage_assessment.covered.length === 0 && (
-                        <p className="text-xs text-green-500 dark:text-green-500">None</p>
-                      )}
-                    </div>
-                    <div className="rounded-lg bg-yellow-50 dark:bg-yellow-950 border border-yellow-200 dark:border-yellow-800 p-3">
-                      <p className="text-xs font-medium text-yellow-700 dark:text-yellow-300 mb-1">
-                        Partially Covered ({analysisResult.coverage_assessment.partially_covered.length})
+                      <p className="text-xs font-medium text-green-600 dark:text-green-400">
+                        Covered
                       </p>
-                      {analysisResult.coverage_assessment.partially_covered.map((s, i) => (
-                        <p key={i} className="text-xs text-yellow-600 dark:text-yellow-400">{s}</p>
-                      ))}
-                      {analysisResult.coverage_assessment.partially_covered.length === 0 && (
-                        <p className="text-xs text-yellow-500 dark:text-yellow-500">None</p>
-                      )}
-                    </div>
-                    <div className="rounded-lg bg-red-50 dark:bg-red-950 border border-red-200 dark:border-red-800 p-3">
-                      <p className="text-xs font-medium text-red-700 dark:text-red-300 mb-1">
-                        Not Covered ({analysisResult.coverage_assessment.not_covered.length})
+                      <p className="text-xs text-green-500 dark:text-green-500 mt-1">
+                        Direct matches
                       </p>
-                      {analysisResult.coverage_assessment.not_covered.map((s, i) => (
-                        <p key={i} className="text-xs text-red-600 dark:text-red-400">{s}</p>
-                      ))}
-                      {analysisResult.coverage_assessment.not_covered.length === 0 && (
-                        <p className="text-xs text-red-500 dark:text-red-500">None</p>
-                      )}
-                    </div>
-                  </div>
-                )}
+                    </button>
 
-                {/* Existing Test Matches */}
-                {analysisResult.matches.length > 0 && (
-                  <div className="space-y-2">
-                    {(["direct", "required changes"] as const).map(
-                      (relevance) => {
-                        const matches = analysisResult.matches.filter(
-                          (m) => m.relevance === relevance
+                    <button
+                      onClick={() => setResultsPanel(resultsPanel === "partial" ? null : "partial")}
+                      className={`rounded-lg border p-3 text-left transition-all ${
+                        resultsPanel === "partial"
+                          ? "border-yellow-500 dark:border-yellow-400 ring-2 ring-yellow-500/20 bg-yellow-50 dark:bg-yellow-950"
+                          : "border-yellow-200 dark:border-yellow-800 bg-yellow-50 dark:bg-yellow-950 hover:border-yellow-400 dark:hover:border-yellow-600"
+                      }`}
+                    >
+                      <p className="text-2xl font-bold text-yellow-700 dark:text-yellow-300">
+                        {changesNeeded.length}
+                      </p>
+                      <p className="text-xs font-medium text-yellow-600 dark:text-yellow-400">
+                        Partially Covered
+                      </p>
+                      <p className="text-xs text-yellow-500 dark:text-yellow-500 mt-1">
+                        Require changes
+                      </p>
+                    </button>
+
+                    <button
+                      onClick={() => setResultsPanel(resultsPanel === "missing" ? null : "missing")}
+                      className={`rounded-lg border p-3 text-left transition-all ${
+                        resultsPanel === "missing"
+                          ? "border-red-500 dark:border-red-400 ring-2 ring-red-500/20 bg-red-50 dark:bg-red-950"
+                          : "border-red-200 dark:border-red-800 bg-red-50 dark:bg-red-950 hover:border-red-400 dark:hover:border-red-600"
+                      }`}
+                    >
+                      <p className="text-2xl font-bold text-red-700 dark:text-red-300">
+                        {missingScenarios.length}
+                      </p>
+                      <p className="text-xs font-medium text-red-600 dark:text-red-400">
+                        Not Covered
+                      </p>
+                      <p className="text-xs text-red-500 dark:text-red-500 mt-1">
+                        Missing scenarios
+                      </p>
+                    </button>
+                  </div>
+
+                  {/* Detail panels — shown when a card is clicked */}
+
+                  {/* Covered: Direct Matches */}
+                  {resultsPanel === "covered" && (
+                    <div className="space-y-2">
+                      <p className="text-xs font-medium text-zinc-500 dark:text-zinc-400">
+                        Direct Match ({directMatches.length})
+                      </p>
+                      {directMatches.length === 0 && (
+                        <p className="text-sm text-zinc-400 py-2">
+                          No direct matches found.
+                        </p>
+                      )}
+                      {directMatches.map((match, i) => (
+                        <div
+                          key={i}
+                          className="rounded-lg border border-green-200 dark:border-green-800 bg-green-50 dark:bg-green-950 p-3"
+                        >
+                          <div className="flex items-baseline gap-2 mb-1">
+                            <span className="font-mono text-xs font-semibold">
+                              {match.test_name}
+                            </span>
+                          </div>
+                          <p className="text-xs text-zinc-500 dark:text-zinc-400 font-mono mb-1">
+                            {match.file_path}
+                          </p>
+                          <p className="text-xs text-zinc-600 dark:text-zinc-300">
+                            {match.explanation}
+                          </p>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+
+                  {/* Partially Covered: Required Changes */}
+                  {resultsPanel === "partial" && (
+                    <div className="space-y-2">
+                      <p className="text-xs font-medium text-zinc-500 dark:text-zinc-400">
+                        Required Changes ({changesNeeded.length})
+                      </p>
+                      {changesNeeded.length === 0 && (
+                        <p className="text-sm text-zinc-400 py-2">
+                          No tests require changes.
+                        </p>
+                      )}
+                      {changesNeeded.map((match, i) => (
+                        <div
+                          key={i}
+                          className="rounded-lg border border-yellow-200 dark:border-yellow-800 bg-yellow-50 dark:bg-yellow-950 p-3"
+                        >
+                          <div className="flex items-baseline gap-2 mb-1">
+                            <span className="font-mono text-xs font-semibold">
+                              {match.test_name}
+                            </span>
+                          </div>
+                          <p className="text-xs text-zinc-500 dark:text-zinc-400 font-mono mb-1">
+                            {match.file_path}
+                          </p>
+                          <p className="text-xs text-zinc-600 dark:text-zinc-300">
+                            {match.explanation}
+                          </p>
+                          {match.modifications_needed.length > 0 && (
+                            <div className="mt-2 border-t border-yellow-200 dark:border-yellow-800 pt-2">
+                              <p className="text-xs font-medium text-yellow-700 dark:text-yellow-300 mb-1">
+                                Modifications needed:
+                              </p>
+                              <ul className="list-disc list-inside space-y-0.5">
+                                {match.modifications_needed.map((mod, j) => (
+                                  <li key={j} className="text-xs text-yellow-600 dark:text-yellow-400">
+                                    {mod}
+                                  </li>
+                                ))}
+                              </ul>
+                            </div>
+                          )}
+                        </div>
+                      ))}
+                    </div>
+                  )}
+
+                  {/* Not Covered: Missing Scenarios */}
+                  {resultsPanel === "missing" && (
+                    <div className="space-y-2">
+                      <p className="text-xs font-medium text-zinc-500 dark:text-zinc-400">
+                        Missing Scenarios ({missingScenarios.length})
+                      </p>
+                      {missingScenarios.length === 0 && (
+                        <p className="text-sm text-zinc-400 py-2">
+                          All scenarios are covered.
+                        </p>
+                      )}
+                      {(["high", "medium", "low"] as const).map((priority) => {
+                        const scenarios = missingScenarios.filter(
+                          (s) => s.priority === priority
                         );
-                        if (matches.length === 0) return null;
-                        const colors = {
-                          "direct":
-                            "border-green-200 dark:border-green-800 bg-green-50 dark:bg-green-950",
-                          "required changes":
-                            "border-yellow-200 dark:border-yellow-800 bg-yellow-50 dark:bg-yellow-950",
+                        if (scenarios.length === 0) return null;
+                        const priorityColors = {
+                          high: "border-red-200 dark:border-red-800 bg-red-50 dark:bg-red-950",
+                          medium: "border-orange-200 dark:border-orange-800 bg-orange-50 dark:bg-orange-950",
+                          low: "border-zinc-200 dark:border-zinc-700 bg-zinc-50 dark:bg-zinc-800",
                         };
-                        const labels = {
-                          "direct": "Direct Match",
-                          "required changes": "Required Changes",
+                        const priorityLabels = {
+                          high: "High Priority",
+                          medium: "Medium Priority",
+                          low: "Low Priority",
                         };
                         return (
-                          <div key={relevance}>
-                            <p className="text-xs font-medium text-zinc-500 dark:text-zinc-400 mb-1">
-                              {labels[relevance]} ({matches.length})
+                          <div key={priority} className="mb-2">
+                            <p className="text-xs font-medium text-zinc-400 mb-1">
+                              {priorityLabels[priority]} ({scenarios.length})
                             </p>
-                            {matches.map((match, i) => (
+                            {scenarios.map((scenario, i) => (
                               <div
                                 key={i}
-                                className={`rounded-lg border p-3 mb-2 ${colors[relevance]}`}
+                                className={`rounded-lg border p-3 mb-2 ${priorityColors[priority]}`}
                               >
-                                <div className="flex items-baseline gap-2 mb-1">
-                                  <span className="font-mono text-xs font-semibold">
-                                    {match.test_name}
+                                <div className="flex items-center gap-2 mb-1">
+                                  <span className="text-xs font-semibold">
+                                    {scenario.scenario_name}
+                                  </span>
+                                  <span className="rounded-full bg-zinc-200 dark:bg-zinc-700 px-2 py-0.5 text-xs text-zinc-600 dark:text-zinc-300">
+                                    {scenario.type.replace("_", " ")}
                                   </span>
                                 </div>
-                                <p className="text-xs text-zinc-500 dark:text-zinc-400 font-mono mb-1">
-                                  {match.file_path}
+                                <p className="text-xs text-zinc-600 dark:text-zinc-300 mb-2">
+                                  {scenario.description}
                                 </p>
-                                <p className="text-xs text-zinc-600 dark:text-zinc-300">
-                                  {match.explanation}
-                                </p>
-                                {match.modifications_needed.length > 0 && (
-                                  <div className="mt-2 border-t border-yellow-200 dark:border-yellow-800 pt-2">
-                                    <p className="text-xs font-medium text-yellow-700 dark:text-yellow-300 mb-1">
-                                      Modifications needed:
-                                    </p>
-                                    <ul className="list-disc list-inside space-y-0.5">
-                                      {match.modifications_needed.map((mod, j) => (
-                                        <li key={j} className="text-xs text-yellow-600 dark:text-yellow-400">
-                                          {mod}
-                                        </li>
-                                      ))}
-                                    </ul>
+                                {scenario.steps.length > 0 && (
+                                  <div className="bg-white/60 dark:bg-zinc-900/60 rounded p-2 mb-2">
+                                    {scenario.steps.map((step, j) => (
+                                      <p key={j} className="text-xs font-mono text-zinc-600 dark:text-zinc-400">
+                                        {step}
+                                      </p>
+                                    ))}
                                   </div>
+                                )}
+                                {scenario.suggested_file && (
+                                  <p className="text-xs text-zinc-400 font-mono">
+                                    Suggested file: {scenario.suggested_file}
+                                  </p>
                                 )}
                               </div>
                             ))}
                           </div>
                         );
-                      }
-                    )}
-                  </div>
-                )}
-
-                {analysisResult.matches.length === 0 && (
-                  <p className="text-sm text-zinc-400 py-2">
-                    No matching tests found in the repository.
-                  </p>
-                )}
-
-                {/* Missing Scenarios */}
-                {analysisResult.missing_scenarios.length > 0 && (
-                  <div>
-                    <p className="text-xs font-medium text-zinc-500 dark:text-zinc-400 mb-2">
-                      Missing Scenarios ({analysisResult.missing_scenarios.length})
-                    </p>
-                    {(["high", "medium", "low"] as const).map((priority) => {
-                      const scenarios = analysisResult.missing_scenarios.filter(
-                        (s) => s.priority === priority
-                      );
-                      if (scenarios.length === 0) return null;
-                      const priorityColors = {
-                        high: "border-red-200 dark:border-red-800 bg-red-50 dark:bg-red-950",
-                        medium: "border-orange-200 dark:border-orange-800 bg-orange-50 dark:bg-orange-950",
-                        low: "border-zinc-200 dark:border-zinc-700 bg-zinc-50 dark:bg-zinc-800",
-                      };
-                      const priorityLabels = {
-                        high: "High Priority",
-                        medium: "Medium Priority",
-                        low: "Low Priority",
-                      };
-                      return (
-                        <div key={priority} className="mb-3">
-                          <p className="text-xs font-medium text-zinc-400 mb-1">
-                            {priorityLabels[priority]} ({scenarios.length})
-                          </p>
-                          {scenarios.map((scenario, i) => (
-                            <div
-                              key={i}
-                              className={`rounded-lg border p-3 mb-2 ${priorityColors[priority]}`}
-                            >
-                              <div className="flex items-center gap-2 mb-1">
-                                <span className="text-xs font-semibold">
-                                  {scenario.scenario_name}
-                                </span>
-                                <span className="rounded-full bg-zinc-200 dark:bg-zinc-700 px-2 py-0.5 text-xs text-zinc-600 dark:text-zinc-300">
-                                  {scenario.type.replace("_", " ")}
-                                </span>
-                              </div>
-                              <p className="text-xs text-zinc-600 dark:text-zinc-300 mb-2">
-                                {scenario.description}
-                              </p>
-                              {scenario.steps.length > 0 && (
-                                <div className="bg-white/60 dark:bg-zinc-900/60 rounded p-2 mb-2">
-                                  {scenario.steps.map((step, j) => (
-                                    <p key={j} className="text-xs font-mono text-zinc-600 dark:text-zinc-400">
-                                      {step}
-                                    </p>
-                                  ))}
-                                </div>
-                              )}
-                              {scenario.suggested_file && (
-                                <p className="text-xs text-zinc-400 font-mono">
-                                  Suggested file: {scenario.suggested_file}
-                                </p>
-                              )}
-                            </div>
-                          ))}
-                        </div>
-                      );
-                    })}
-                  </div>
-                )}
-              </div>
-            )}
+                      })}
+                    </div>
+                  )}
+                </div>
+              );
+            })()}
           </section>
         )}
 
