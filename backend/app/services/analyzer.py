@@ -22,6 +22,7 @@ class AnalysisState(TypedDict):
     ac_content: str
     repo_path: str
     test_path: str | None
+    business_summary: str
     test_tree: list[dict]
     test_context: str
     llm_response: str
@@ -67,8 +68,10 @@ async def match_tests(state: AnalysisState) -> dict:
 
     system_prompt = _load_prompt("analysis_system.md")
     user_template = _load_prompt("analysis_user.md")
+    business_summary = state.get("business_summary", "")
     user_message = user_template.format(
         ac_content=state["ac_content"],
+        business_summary=business_summary if business_summary else "No business summary available yet.",
         test_context=state["test_context"],
     )
 
@@ -80,37 +83,56 @@ async def match_tests(state: AnalysisState) -> dict:
     return {**state, "llm_response": response.content}
 
 
+def _strip_code_fences(text: str) -> str:
+    """Remove markdown code fences from LLM output."""
+    cleaned = text.strip()
+    if cleaned.startswith("```json"):
+        cleaned = cleaned[7:]
+    if cleaned.startswith("```"):
+        cleaned = cleaned[3:]
+    if cleaned.endswith("```"):
+        cleaned = cleaned[:-3]
+    return cleaned.strip()
+
+
 def format_results(state: AnalysisState) -> dict:
     """Parse the LLM response into structured analysis results."""
     raw = state.get("llm_response", "")
 
     try:
-        cleaned = raw.strip()
-        if cleaned.startswith("```json"):
-            cleaned = cleaned[7:]
-        if cleaned.startswith("```"):
-            cleaned = cleaned[3:]
-        if cleaned.endswith("```"):
-            cleaned = cleaned[:-3]
-        parsed = json.loads(cleaned.strip())
+        parsed = json.loads(_strip_code_fences(raw))
     except (json.JSONDecodeError, ValueError):
         parsed = {
             "matches": [],
+            "missing_scenarios": [],
             "summary": "Failed to parse LLM response",
-            "suggestions": ["Try rephrasing the acceptance criteria"],
+            "coverage_assessment": None,
         }
 
-    _VALID_RELEVANCE = {"direct", "required changes", "no match"}
+    _VALID_RELEVANCE = {"direct", "required changes"}
     for match in parsed.get("matches", []):
         if match.get("relevance") not in _VALID_RELEVANCE:
-            match["relevance"] = "no match"
+            match["relevance"] = "required changes"
+        if not isinstance(match.get("modifications_needed"), list):
+            match["modifications_needed"] = []
+
+    _VALID_TYPES = {"positive", "negative", "edge_case", "boundary"}
+    _VALID_PRIORITIES = {"high", "medium", "low"}
+    for scenario in parsed.get("missing_scenarios", []):
+        if scenario.get("type") not in _VALID_TYPES:
+            scenario["type"] = "positive"
+        if scenario.get("priority") not in _VALID_PRIORITIES:
+            scenario["priority"] = "medium"
+        if not isinstance(scenario.get("steps"), list):
+            scenario["steps"] = []
 
     return {
         **state,
         "result": {
             "matches": parsed.get("matches", []),
+            "missing_scenarios": parsed.get("missing_scenarios", []),
             "summary": parsed.get("summary", ""),
-            "suggestions": parsed.get("suggestions", []),
+            "coverage_assessment": parsed.get("coverage_assessment"),
         },
     }
 
@@ -196,6 +218,7 @@ async def find_related_tests(
     repo_path: str,
     test_path: str | None,
     llm: BaseChatModel,
+    business_summary: str = "",
 ) -> dict:
     """Run the analysis workflow and return structured results."""
     graph = get_analysis_graph()
@@ -204,6 +227,7 @@ async def find_related_tests(
         "ac_content": ac_content,
         "repo_path": repo_path,
         "test_path": test_path,
+        "business_summary": business_summary,
         "test_tree": [],
         "test_context": "",
         "llm_response": "",

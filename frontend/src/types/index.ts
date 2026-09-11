@@ -120,14 +120,31 @@ export interface AnalysisRequest {
 export interface MatchedTest {
   file_path: string;
   test_name: string;
-  relevance: "direct" | "required changes" | "no match";
+  relevance: "direct" | "required changes";
   explanation: string;
+  modifications_needed: string[];
+}
+
+export interface MissingScenario {
+  scenario_name: string;
+  type: "positive" | "negative" | "edge_case" | "boundary";
+  description: string;
+  steps: string[];
+  priority: "high" | "medium" | "low";
+  suggested_file: string;
+}
+
+export interface CoverageAssessment {
+  covered: string[];
+  partially_covered: string[];
+  not_covered: string[];
 }
 
 export interface AnalysisResult {
   matches: MatchedTest[];
+  missing_scenarios: MissingScenario[];
   summary: string;
-  suggestions: string[];
+  coverage_assessment: CoverageAssessment | null;
 }
 
 export interface ACCreate {

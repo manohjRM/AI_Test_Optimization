@@ -293,6 +293,7 @@ async def analyze_tests(
         repo_path=project.local_path,
         test_path=project.test_path,
         llm=llm,
+        business_summary=project.business_summary or "",
     )
 
     from app.services.analyzer import generate_summaries

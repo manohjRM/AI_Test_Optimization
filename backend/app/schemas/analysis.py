@@ -15,9 +15,26 @@ class MatchedTest(BaseModel):
     test_name: str
     relevance: str
     explanation: str
+    modifications_needed: list[str] = []
+
+
+class MissingScenario(BaseModel):
+    scenario_name: str
+    type: str
+    description: str
+    steps: list[str] = []
+    priority: str = "medium"
+    suggested_file: str = ""
+
+
+class CoverageAssessment(BaseModel):
+    covered: list[str] = []
+    partially_covered: list[str] = []
+    not_covered: list[str] = []
 
 
 class AnalysisResult(BaseModel):
     matches: list[MatchedTest]
+    missing_scenarios: list[MissingScenario] = []
     summary: str
-    suggestions: list[str]
+    coverage_assessment: CoverageAssessment | None = None
