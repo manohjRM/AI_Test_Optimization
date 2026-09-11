@@ -227,6 +227,7 @@ export default function ProjectDetail() {
   const [summaryGenerating, setSummaryGenerating] = useState(false);
   const [summaryError, setSummaryError] = useState<string | null>(null);
   const [summaryTab, setSummaryTab] = useState<"business" | "functional">("business");
+  const [summaryOpen, setSummaryOpen] = useState(false);
 
   // Analysis
   const [analysisResult, setAnalysisResult] = useState<AnalysisResult | null>(null);
@@ -570,28 +571,38 @@ export default function ProjectDetail() {
           </p>
         </section>
 
-        {/* Application Summary */}
+        {/* Application Summary — compact card */}
         {isRepoReady && (
           <section className="rounded-lg border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 p-5">
-            <div className="flex items-center justify-between mb-3">
+            <div className="flex items-center justify-between">
               <h2 className="text-sm font-semibold">Application Summary</h2>
-              <button
-                onClick={handleGenerateSummary}
-                disabled={summaryGenerating}
-                className="rounded-lg border border-blue-300 dark:border-blue-700 px-4 py-1.5 text-xs font-medium text-blue-600 dark:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-950 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-              >
-                {summaryGenerating ? "Generating..." : (project.business_summary || project.functional_summary) ? "Regenerate" : "Generate Summary"}
-              </button>
+              <div className="flex items-center gap-2">
+                {(project.business_summary || project.functional_summary) && !summaryGenerating && (
+                  <button
+                    onClick={() => setSummaryOpen(true)}
+                    className="rounded-lg border border-zinc-300 dark:border-zinc-700 px-4 py-1.5 text-xs font-medium text-zinc-600 dark:text-zinc-400 hover:bg-zinc-100 dark:hover:bg-zinc-800 transition-colors"
+                  >
+                    View Summary
+                  </button>
+                )}
+                <button
+                  onClick={handleGenerateSummary}
+                  disabled={summaryGenerating}
+                  className="rounded-lg border border-blue-300 dark:border-blue-700 px-4 py-1.5 text-xs font-medium text-blue-600 dark:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-950 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                >
+                  {summaryGenerating ? "Generating..." : (project.business_summary || project.functional_summary) ? "Regenerate" : "Generate Summary"}
+                </button>
+              </div>
             </div>
 
             {summaryError && (
-              <p className="text-sm text-red-600 dark:text-red-400 mb-3">
+              <p className="text-sm text-red-600 dark:text-red-400 mt-3">
                 {summaryError}
               </p>
             )}
 
             {summaryGenerating && (
-              <div className="flex items-center gap-3 py-4">
+              <div className="flex items-center gap-3 mt-3">
                 <div className="h-4 w-4 border-2 border-blue-500 border-t-transparent rounded-full animate-spin" />
                 <p className="text-sm text-zinc-500">
                   Generating business and functional summaries from test suite...
@@ -600,60 +611,89 @@ export default function ProjectDetail() {
             )}
 
             {(project.business_summary || project.functional_summary) && !summaryGenerating && (
-              <div>
-                <div className="flex border-b border-zinc-200 dark:border-zinc-700 mb-3">
-                  <button
-                    onClick={() => setSummaryTab("business")}
-                    className={`px-4 py-2 text-xs font-medium transition-colors ${
-                      summaryTab === "business"
-                        ? "border-b-2 border-blue-600 text-blue-600 dark:text-blue-400 dark:border-blue-400"
-                        : "text-zinc-500 dark:text-zinc-400 hover:text-zinc-700 dark:hover:text-zinc-300"
-                    }`}
-                  >
-                    Business Summary
-                  </button>
-                  <button
-                    onClick={() => setSummaryTab("functional")}
-                    className={`px-4 py-2 text-xs font-medium transition-colors ${
-                      summaryTab === "functional"
-                        ? "border-b-2 border-blue-600 text-blue-600 dark:text-blue-400 dark:border-blue-400"
-                        : "text-zinc-500 dark:text-zinc-400 hover:text-zinc-700 dark:hover:text-zinc-300"
-                    }`}
-                  >
-                    Functional Summary
-                  </button>
-                </div>
+              <p className="text-xs text-zinc-400 mt-2">
+                Summary generated. Click &quot;View Summary&quot; to read the full business and functional analysis.
+              </p>
+            )}
 
+            {!project.business_summary && !project.functional_summary && !summaryGenerating && !summaryError && (
+              <p className="text-xs text-zinc-400 mt-2">
+                No summary generated yet. Click &quot;Generate Summary&quot; to analyze the test suite.
+              </p>
+            )}
+          </section>
+        )}
+
+        {/* Summary Modal */}
+        {summaryOpen && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50" onClick={() => setSummaryOpen(false)}>
+            <div
+              className="bg-white dark:bg-zinc-900 rounded-xl shadow-2xl border border-zinc-200 dark:border-zinc-700 w-full max-w-3xl max-h-[80vh] flex flex-col mx-4"
+              onClick={(e) => e.stopPropagation()}
+            >
+              {/* Modal header */}
+              <div className="flex items-center justify-between px-6 py-4 border-b border-zinc-200 dark:border-zinc-700 shrink-0">
+                <h2 className="text-base font-semibold">Application Summary</h2>
+                <button
+                  onClick={() => setSummaryOpen(false)}
+                  className="rounded-lg p-1.5 text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-200 hover:bg-zinc-100 dark:hover:bg-zinc-800 transition-colors"
+                >
+                  <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
+                    <path d="M4 4l8 8M12 4l-8 8" />
+                  </svg>
+                </button>
+              </div>
+
+              {/* Tabs */}
+              <div className="flex border-b border-zinc-200 dark:border-zinc-700 px-6 shrink-0">
+                <button
+                  onClick={() => setSummaryTab("business")}
+                  className={`px-4 py-2.5 text-sm font-medium transition-colors ${
+                    summaryTab === "business"
+                      ? "border-b-2 border-blue-600 text-blue-600 dark:text-blue-400 dark:border-blue-400"
+                      : "text-zinc-500 dark:text-zinc-400 hover:text-zinc-700 dark:hover:text-zinc-300"
+                  }`}
+                >
+                  Business Summary
+                </button>
+                <button
+                  onClick={() => setSummaryTab("functional")}
+                  className={`px-4 py-2.5 text-sm font-medium transition-colors ${
+                    summaryTab === "functional"
+                      ? "border-b-2 border-blue-600 text-blue-600 dark:text-blue-400 dark:border-blue-400"
+                      : "text-zinc-500 dark:text-zinc-400 hover:text-zinc-700 dark:hover:text-zinc-300"
+                  }`}
+                >
+                  Functional Summary
+                </button>
+              </div>
+
+              {/* Modal body — scrollable */}
+              <div className="flex-1 overflow-y-auto px-6 py-4">
                 {summaryTab === "business" && (
                   <div>
-                    <p className="text-xs text-zinc-400 dark:text-zinc-500 mb-2">
+                    <p className="text-xs text-zinc-400 dark:text-zinc-500 mb-3">
                       Used to validate acceptance criteria and ensure changes are appropriate for this application.
                     </p>
-                    <div className="text-sm text-zinc-700 dark:text-zinc-300 whitespace-pre-wrap">
-                      {project.business_summary || "Not yet generated."}
+                    <div className="text-sm text-zinc-700 dark:text-zinc-300 whitespace-pre-wrap leading-relaxed">
+                      {project?.business_summary || "Not yet generated."}
                     </div>
                   </div>
                 )}
 
                 {summaryTab === "functional" && (
                   <div>
-                    <p className="text-xs text-zinc-400 dark:text-zinc-500 mb-2">
+                    <p className="text-xs text-zinc-400 dark:text-zinc-500 mb-3">
                       Used to create new tests and validate existing tests against acceptance criteria.
                     </p>
-                    <div className="text-sm text-zinc-700 dark:text-zinc-300 whitespace-pre-wrap">
-                      {project.functional_summary || "Not yet generated."}
+                    <div className="text-sm text-zinc-700 dark:text-zinc-300 whitespace-pre-wrap leading-relaxed">
+                      {project?.functional_summary || "Not yet generated."}
                     </div>
                   </div>
                 )}
               </div>
-            )}
-
-            {!project.business_summary && !project.functional_summary && !summaryGenerating && !summaryError && (
-              <p className="text-sm text-zinc-400">
-                No summary generated yet. Click &quot;Generate Summary&quot; to analyze the test suite.
-              </p>
-            )}
-          </section>
+            </div>
+          </div>
         )}
 
         {/* Test Suite — Stats + Explorer Tree */}
