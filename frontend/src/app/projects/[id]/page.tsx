@@ -15,6 +15,7 @@ import {
   createAC,
   listACs,
   deleteAC,
+  updateAC,
   analyzeTests,
   generateSummary,
 } from "@/lib/api";
@@ -222,6 +223,8 @@ export default function ProjectDetail() {
   const [acInput, setAcInput] = useState("");
   const [acSaving, setAcSaving] = useState(false);
   const [acError, setAcError] = useState<string | null>(null);
+  const [editingAcId, setEditingAcId] = useState<string | null>(null);
+  const [editingAcContent, setEditingAcContent] = useState("");
 
   // Summary
   const [summaryGenerating, setSummaryGenerating] = useState(false);
@@ -381,6 +384,35 @@ export default function ProjectDetail() {
       );
     } finally {
       setSummaryGenerating(false);
+    }
+  }
+
+  function handleStartEditAC(ac: ACRead) {
+    setEditingAcId(ac.id);
+    setEditingAcContent(ac.content);
+    setAcError(null);
+  }
+
+  function handleCancelEditAC() {
+    setEditingAcId(null);
+    setEditingAcContent("");
+  }
+
+  async function handleSaveEditAC() {
+    if (!editingAcId || !editingAcContent.trim()) return;
+    setAcSaving(true);
+    setAcError(null);
+    try {
+      const updated = await updateAC(projectId, editingAcId, { content: editingAcContent.trim() });
+      setAcs((prev) => prev.map((a) => (a.id === updated.id ? updated : a)));
+      setEditingAcId(null);
+      setEditingAcContent("");
+    } catch (err) {
+      setAcError(
+        err instanceof Error ? err.message : "Failed to update acceptance criteria"
+      );
+    } finally {
+      setAcSaving(false);
     }
   }
 
@@ -862,29 +894,64 @@ export default function ProjectDetail() {
                     key={ac.id}
                     className="rounded-lg border border-zinc-200 dark:border-zinc-700 p-3"
                   >
-                    <div className="flex items-start justify-between gap-3">
-                      <pre className="flex-1 text-xs font-mono whitespace-pre-wrap text-zinc-700 dark:text-zinc-300">
-                        {ac.content}
-                      </pre>
-                      <div className="flex gap-2 shrink-0">
-                        <button
-                          onClick={() => handleAnalyze(ac.id)}
-                          disabled={analyzingAcId !== null}
-                          className="rounded border border-blue-300 dark:border-blue-700 px-3 py-1 text-xs font-medium text-blue-600 dark:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-950 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-                        >
-                          {analyzingAcId === ac.id ? "Analyzing..." : "Analyze"}
-                        </button>
-                        <button
-                          onClick={() => handleDeleteAC(ac.id)}
-                          className="rounded border border-red-200 dark:border-red-800 px-2 py-1 text-xs text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-950 transition-colors"
-                        >
-                          Delete
-                        </button>
+                    {editingAcId === ac.id ? (
+                      <div className="space-y-2">
+                        <textarea
+                          value={editingAcContent}
+                          onChange={(e) => setEditingAcContent(e.target.value)}
+                          rows={5}
+                          className="w-full rounded-lg border border-blue-300 dark:border-blue-700 bg-white dark:bg-zinc-900 px-3 py-2 text-sm font-mono focus:outline-none focus:ring-2 focus:ring-blue-500"
+                        />
+                        <div className="flex gap-2">
+                          <button
+                            onClick={handleSaveEditAC}
+                            disabled={acSaving || !editingAcContent.trim()}
+                            className="rounded border border-green-300 dark:border-green-700 px-3 py-1 text-xs font-medium text-green-600 dark:text-green-400 hover:bg-green-50 dark:hover:bg-green-950 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                          >
+                            {acSaving ? "Saving..." : "Save"}
+                          </button>
+                          <button
+                            onClick={handleCancelEditAC}
+                            disabled={acSaving}
+                            className="rounded border border-zinc-300 dark:border-zinc-700 px-3 py-1 text-xs text-zinc-600 dark:text-zinc-400 hover:bg-zinc-50 dark:hover:bg-zinc-800 transition-colors"
+                          >
+                            Cancel
+                          </button>
+                        </div>
                       </div>
-                    </div>
-                    <p className="text-xs text-zinc-400 mt-2">
-                      {new Date(ac.created_at).toLocaleString()}
-                    </p>
+                    ) : (
+                      <div>
+                        <div className="flex items-start justify-between gap-3">
+                          <pre className="flex-1 text-xs font-mono whitespace-pre-wrap text-zinc-700 dark:text-zinc-300">
+                            {ac.content}
+                          </pre>
+                          <div className="flex gap-2 shrink-0">
+                            <button
+                              onClick={() => handleAnalyze(ac.id)}
+                              disabled={analyzingAcId !== null}
+                              className="rounded border border-blue-300 dark:border-blue-700 px-3 py-1 text-xs font-medium text-blue-600 dark:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-950 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                            >
+                              {analyzingAcId === ac.id ? "Analyzing..." : "Analyze"}
+                            </button>
+                            <button
+                              onClick={() => handleStartEditAC(ac)}
+                              className="rounded border border-zinc-300 dark:border-zinc-700 px-2 py-1 text-xs text-zinc-600 dark:text-zinc-400 hover:bg-zinc-50 dark:hover:bg-zinc-800 transition-colors"
+                            >
+                              Edit
+                            </button>
+                            <button
+                              onClick={() => handleDeleteAC(ac.id)}
+                              className="rounded border border-red-200 dark:border-red-800 px-2 py-1 text-xs text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-950 transition-colors"
+                            >
+                              Delete
+                            </button>
+                          </div>
+                        </div>
+                        <p className="text-xs text-zinc-400 mt-2">
+                          {new Date(ac.created_at).toLocaleString()}
+                        </p>
+                      </div>
+                    )}
                   </div>
                 ))}
               </div>

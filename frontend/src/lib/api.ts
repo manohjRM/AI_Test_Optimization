@@ -97,6 +97,17 @@ export async function listACs(projectId: string): Promise<ACRead[]> {
   return request<ACRead[]>(`/projects/${projectId}/acceptance-criteria`);
 }
 
+export async function updateAC(
+  projectId: string,
+  acId: string,
+  payload: ACCreate
+): Promise<ACRead> {
+  return request<ACRead>(`/projects/${projectId}/acceptance-criteria/${acId}`, {
+    method: "PATCH",
+    body: JSON.stringify(payload),
+  });
+}
+
 export async function deleteAC(
   projectId: string,
   acId: string

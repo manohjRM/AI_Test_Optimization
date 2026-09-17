@@ -210,6 +210,22 @@ async def list_acceptance_criteria(
     return list(result.scalars().all())
 
 
+@router.patch("/{project_id}/acceptance-criteria/{ac_id}", response_model=ACRead)
+async def update_acceptance_criteria(
+    project_id: uuid.UUID,
+    ac_id: uuid.UUID,
+    payload: ACCreate,
+    db: AsyncSession = Depends(get_db),
+) -> AcceptanceCriteria:
+    ac = await db.get(AcceptanceCriteria, ac_id)
+    if not ac or ac.project_id != project_id:
+        raise HTTPException(status_code=404, detail="Acceptance criteria not found")
+    ac.content = payload.content
+    await db.commit()
+    await db.refresh(ac)
+    return ac
+
+
 @router.delete("/{project_id}/acceptance-criteria/{ac_id}", status_code=204)
 async def delete_acceptance_criteria(
     project_id: uuid.UUID,
