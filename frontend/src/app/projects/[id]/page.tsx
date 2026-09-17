@@ -237,6 +237,8 @@ export default function ProjectDetail() {
   const [analyzingAcId, setAnalyzingAcId] = useState<string | null>(null);
   const [analysisError, setAnalysisError] = useState<string | null>(null);
   const [resultsPanel, setResultsPanel] = useState<"covered" | "partial" | "missing" | null>(null);
+  const [analyzingAll, setAnalyzingAll] = useState(false);
+  const [analyzeAllProgress, setAnalyzeAllProgress] = useState({ done: 0, total: 0 });
 
   useEffect(() => {
     async function fetch() {
@@ -376,6 +378,33 @@ export default function ProjectDetail() {
     }
   }
 
+  async function handleAnalyzeAll() {
+    if (acs.length === 0) return;
+    setAnalyzingAll(true);
+    setAnalysisResult(null);
+    setAnalysisError(null);
+    setResultsPanel(null);
+    setAnalyzeAllProgress({ done: 0, total: acs.length });
+    try {
+      for (let i = 0; i < acs.length; i++) {
+        setAnalyzingAcId(acs[i].id);
+        await analyzeTests(projectId, acs[i].id);
+        setAnalyzeAllProgress({ done: i + 1, total: acs.length });
+      }
+      const refreshedAcs = await listACs(projectId);
+      setAcs(refreshedAcs);
+      const refreshedProject = await getProject(projectId);
+      setProject(refreshedProject);
+    } catch (err) {
+      setAnalysisError(
+        err instanceof Error ? err.message : "Analyze all failed"
+      );
+    } finally {
+      setAnalyzingAcId(null);
+      setAnalyzingAll(false);
+    }
+  }
+
   async function handleGenerateSummary() {
     setSummaryGenerating(true);
     setSummaryError(null);
@@ -456,73 +485,107 @@ export default function ProjectDetail() {
   function downloadReport(result: AnalysisResult, acContent: string) {
     const directMatches = result.matches.filter((m) => m.relevance === "direct");
     const changesNeeded = result.matches.filter((m) => m.relevance === "required changes");
+    const escHtml = (s: string) => s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+    const date = new Date().toLocaleDateString("en-US", { year: "numeric", month: "long", day: "numeric" });
 
-    const lines: string[] = [];
-    lines.push("# Test Analysis Report");
-    lines.push("");
-    lines.push("## Acceptance Criteria");
-    lines.push("");
-    lines.push(acContent);
-    lines.push("");
-    lines.push("## Summary");
-    lines.push("");
-    lines.push(result.summary);
-    lines.push("");
-    lines.push(`- Direct matches: ${directMatches.length}`);
-    lines.push(`- Required changes: ${changesNeeded.length}`);
-    lines.push(`- Missing scenarios: ${result.missing_scenarios.length}`);
-    lines.push("");
+    const html = `<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Test Analysis Report</title>
+<style>
+  :root { --green: #16a34a; --yellow: #ca8a04; --red: #dc2626; --orange: #ea580c; --purple: #9333ea; --zinc: #71717a; --bg: #ffffff; --fg: #18181b; --muted: #52525b; --border: #e4e4e7; --card: #fafafa; }
+  @media (prefers-color-scheme: dark) { :root { --bg: #18181b; --fg: #fafaf9; --muted: #a1a1aa; --border: #3f3f46; --card: #27272a; } }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; background: var(--bg); color: var(--fg); line-height: 1.6; padding: 40px; max-width: 900px; margin: 0 auto; }
+  h1 { font-size: 1.5rem; margin-bottom: 4px; }
+  .date { color: var(--muted); font-size: 0.85rem; margin-bottom: 24px; }
+  h2 { font-size: 1.1rem; margin: 32px 0 12px; padding-bottom: 6px; border-bottom: 2px solid var(--border); }
+  .summary-text { color: var(--muted); margin-bottom: 16px; }
+  .stats { display: flex; gap: 12px; margin-bottom: 24px; }
+  .stat { flex: 1; padding: 16px; border-radius: 8px; text-align: center; }
+  .stat-num { font-size: 1.75rem; font-weight: 700; }
+  .stat-label { font-size: 0.75rem; font-weight: 500; margin-top: 2px; }
+  .stat-green { background: #f0fdf4; border: 1px solid #bbf7d0; color: var(--green); }
+  .stat-yellow { background: #fefce8; border: 1px solid #fef08a; color: var(--yellow); }
+  .stat-red { background: #fef2f2; border: 1px solid #fecaca; color: var(--red); }
+  @media (prefers-color-scheme: dark) { .stat-green { background: #052e16; border-color: #166534; } .stat-yellow { background: #422006; border-color: #854d0e; } .stat-red { background: #450a0a; border-color: #991b1b; } }
+  .card { border: 1px solid var(--border); border-radius: 8px; padding: 14px; margin-bottom: 10px; background: var(--card); }
+  .card-green { border-left: 4px solid var(--green); }
+  .card-yellow { border-left: 4px solid var(--yellow); }
+  .card-red { border-left: 4px solid var(--red); }
+  .card-orange { border-left: 4px solid var(--orange); }
+  .card-muted { border-left: 4px solid var(--zinc); }
+  .test-name { font-family: 'SF Mono', Consolas, monospace; font-weight: 600; font-size: 0.85rem; }
+  .file-path { font-family: 'SF Mono', Consolas, monospace; font-size: 0.75rem; color: var(--muted); margin: 2px 0 6px; }
+  .explanation { font-size: 0.85rem; }
+  .mods-label { font-size: 0.8rem; font-weight: 600; color: var(--yellow); margin-top: 10px; }
+  .mods-list { margin: 4px 0 0 18px; font-size: 0.8rem; color: var(--yellow); }
+  .mods-list li { margin-bottom: 2px; }
+  .badge { display: inline-block; padding: 2px 8px; border-radius: 99px; font-size: 0.7rem; font-weight: 600; margin-left: 6px; }
+  .badge-high { background: #fef2f2; color: var(--red); border: 1px solid #fecaca; }
+  .badge-medium { background: #fff7ed; color: var(--orange); border: 1px solid #fed7aa; }
+  .badge-low { background: var(--card); color: var(--muted); border: 1px solid var(--border); }
+  .badge-type { background: var(--card); color: var(--muted); border: 1px solid var(--border); }
+  @media (prefers-color-scheme: dark) { .badge-high { background: #450a0a; border-color: #991b1b; } .badge-medium { background: #431407; border-color: #9a3412; } .badge-low { background: #27272a; border-color: #3f3f46; } .badge-type { background: #27272a; border-color: #3f3f46; } }
+  .steps { background: var(--card); border: 1px solid var(--border); border-radius: 6px; padding: 10px 14px; margin: 8px 0; font-family: 'SF Mono', Consolas, monospace; font-size: 0.8rem; line-height: 1.8; }
+  .suggested { font-size: 0.75rem; color: var(--muted); font-family: 'SF Mono', Consolas, monospace; }
+  .ac-block { background: var(--card); border: 1px solid var(--border); border-radius: 8px; padding: 14px; font-family: 'SF Mono', Consolas, monospace; font-size: 0.85rem; white-space: pre-wrap; line-height: 1.7; margin-bottom: 16px; }
+  .section-empty { color: var(--muted); font-size: 0.85rem; font-style: italic; }
+  @media print { body { padding: 20px; } .stats { break-inside: avoid; } .card { break-inside: avoid; } }
+</style>
+</head>
+<body>
+<h1>Test Analysis Report</h1>
+<p class="date">${escHtml(date)}${project ? ` &mdash; ${escHtml(project.name)}` : ""}</p>
 
-    if (directMatches.length > 0) {
-      lines.push("## Direct Matches");
-      lines.push("");
-      directMatches.forEach((m) => {
-        lines.push(`### ${m.test_name}`);
-        lines.push(`- File: ${m.file_path}`);
-        lines.push(`- ${m.explanation}`);
-        lines.push("");
-      });
-    }
+<h2>Acceptance Criteria</h2>
+<div class="ac-block">${escHtml(acContent)}</div>
 
-    if (changesNeeded.length > 0) {
-      lines.push("## Required Changes");
-      lines.push("");
-      changesNeeded.forEach((m) => {
-        lines.push(`### ${m.test_name}`);
-        lines.push(`- File: ${m.file_path}`);
-        lines.push(`- ${m.explanation}`);
-        if (m.modifications_needed.length > 0) {
-          lines.push("- Modifications needed:");
-          m.modifications_needed.forEach((mod) => {
-            lines.push(`  - ${mod}`);
-          });
-        }
-        lines.push("");
-      });
-    }
+<h2>Summary</h2>
+<p class="summary-text">${escHtml(result.summary)}</p>
+<div class="stats">
+  <div class="stat stat-green"><div class="stat-num">${directMatches.length}</div><div class="stat-label">Covered</div></div>
+  <div class="stat stat-yellow"><div class="stat-num">${changesNeeded.length}</div><div class="stat-label">Partially Covered</div></div>
+  <div class="stat stat-red"><div class="stat-num">${result.missing_scenarios.length}</div><div class="stat-label">Not Covered</div></div>
+</div>
 
-    if (result.missing_scenarios.length > 0) {
-      lines.push("## Missing Scenarios");
-      lines.push("");
-      result.missing_scenarios.forEach((s) => {
-        lines.push(`### ${s.scenario_name} [${s.priority}] (${s.type.replace("_", " ")})`);
-        lines.push(`${s.description}`);
-        if (s.steps.length > 0) {
-          lines.push("");
-          s.steps.forEach((step) => lines.push(`  ${step}`));
-        }
-        if (s.suggested_file) {
-          lines.push(`- Suggested file: ${s.suggested_file}`);
-        }
-        lines.push("");
-      });
-    }
+${directMatches.length > 0 ? `<h2>Direct Matches</h2>
+${directMatches.map((m) => `<div class="card card-green">
+  <div class="test-name">${escHtml(m.test_name)}</div>
+  <div class="file-path">${escHtml(m.file_path)}</div>
+  <div class="explanation">${escHtml(m.explanation)}</div>
+</div>`).join("\n")}` : ""}
 
-    const blob = new Blob([lines.join("\n")], { type: "text/markdown" });
+${changesNeeded.length > 0 ? `<h2>Required Changes</h2>
+${changesNeeded.map((m) => `<div class="card card-yellow">
+  <div class="test-name">${escHtml(m.test_name)}</div>
+  <div class="file-path">${escHtml(m.file_path)}</div>
+  <div class="explanation">${escHtml(m.explanation)}</div>
+  ${m.modifications_needed.length > 0 ? `<div class="mods-label">Modifications needed:</div>
+  <ul class="mods-list">${m.modifications_needed.map((mod) => `<li>${escHtml(mod)}</li>`).join("")}</ul>` : ""}
+</div>`).join("\n")}` : ""}
+
+${result.missing_scenarios.length > 0 ? `<h2>Missing Scenarios</h2>
+${result.missing_scenarios.map((s) => {
+      const priorityClass = s.priority === "high" ? "card-red" : s.priority === "medium" ? "card-orange" : "card-muted";
+      return `<div class="card ${priorityClass}">
+  <div><span class="test-name">${escHtml(s.scenario_name)}</span><span class="badge badge-${s.priority}">${s.priority}</span><span class="badge badge-type">${escHtml(s.type.replace("_", " "))}</span></div>
+  <div class="explanation" style="margin-top:4px">${escHtml(s.description)}</div>
+  ${s.steps.length > 0 ? `<div class="steps">${s.steps.map((step) => escHtml(step)).join("<br>")}</div>` : ""}
+  ${s.suggested_file ? `<div class="suggested">Suggested file: ${escHtml(s.suggested_file)}</div>` : ""}
+</div>`;
+    }).join("\n")}` : ""}
+
+</body>
+</html>`;
+
+    const blob = new Blob([html], { type: "text/html" });
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
     a.href = url;
-    a.download = `analysis-report-${new Date().toISOString().slice(0, 10)}.md`;
+    a.download = `analysis-report-${new Date().toISOString().slice(0, 10)}.html`;
     document.body.appendChild(a);
     a.click();
     document.body.removeChild(a);
@@ -946,7 +1009,20 @@ export default function ProjectDetail() {
         {/* Acceptance Criteria */}
         {isRepoReady && (
           <section className="rounded-lg border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 p-5">
-            <h2 className="text-sm font-semibold mb-4">Acceptance Criteria</h2>
+            <div className="flex items-center justify-between mb-4">
+              <h2 className="text-sm font-semibold">Acceptance Criteria</h2>
+              {acs.length > 0 && (
+                <button
+                  onClick={handleAnalyzeAll}
+                  disabled={analyzingAll || analyzingAcId !== null}
+                  className="rounded-lg bg-blue-600 px-4 py-1.5 text-xs font-medium text-white hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                >
+                  {analyzingAll
+                    ? `Analyzing ${analyzeAllProgress.done}/${analyzeAllProgress.total}...`
+                    : "Analyze All"}
+                </button>
+              )}
+            </div>
 
             <div className="space-y-3 mb-4">
               <textarea
