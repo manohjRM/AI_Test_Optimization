@@ -3,6 +3,7 @@
 
 import uuid
 from datetime import datetime
+from typing import Any
 
 from pydantic import BaseModel, field_validator
 
@@ -24,5 +25,6 @@ class ACRead(BaseModel):
     id: uuid.UUID
     project_id: uuid.UUID
     content: str
+    analysis_result: dict[str, Any] | None = None
     created_at: datetime
     updated_at: datetime

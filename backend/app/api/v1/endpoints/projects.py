@@ -312,6 +312,10 @@ async def analyze_tests(
         business_summary=project.business_summary or "",
     )
 
+    ac.analysis_result = result
+    await db.commit()
+    await db.refresh(ac)
+
     from app.services.analyzer import generate_summaries
 
     try:

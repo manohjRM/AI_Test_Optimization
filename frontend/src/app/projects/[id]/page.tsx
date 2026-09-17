@@ -361,8 +361,12 @@ export default function ProjectDetail() {
     try {
       const result = await analyzeTests(projectId, acId);
       setAnalysisResult(result);
-      const refreshed = await getProject(projectId);
-      setProject(refreshed);
+      const [refreshedProject, refreshedAcs] = await Promise.all([
+        getProject(projectId),
+        listACs(projectId),
+      ]);
+      setProject(refreshedProject);
+      setAcs(refreshedAcs);
     } catch (err) {
       setAnalysisError(
         err instanceof Error ? err.message : "Analysis failed"
@@ -439,6 +443,90 @@ export default function ProjectDetail() {
         err instanceof Error ? err.message : "Failed to delete project"
       );
     }
+  }
+
+  function handleViewAnalysis(ac: ACRead) {
+    if (ac.analysis_result) {
+      setAnalysisResult(ac.analysis_result);
+      setResultsPanel(null);
+      setAnalysisError(null);
+    }
+  }
+
+  function downloadReport(result: AnalysisResult, acContent: string) {
+    const directMatches = result.matches.filter((m) => m.relevance === "direct");
+    const changesNeeded = result.matches.filter((m) => m.relevance === "required changes");
+
+    const lines: string[] = [];
+    lines.push("# Test Analysis Report");
+    lines.push("");
+    lines.push("## Acceptance Criteria");
+    lines.push("");
+    lines.push(acContent);
+    lines.push("");
+    lines.push("## Summary");
+    lines.push("");
+    lines.push(result.summary);
+    lines.push("");
+    lines.push(`- Direct matches: ${directMatches.length}`);
+    lines.push(`- Required changes: ${changesNeeded.length}`);
+    lines.push(`- Missing scenarios: ${result.missing_scenarios.length}`);
+    lines.push("");
+
+    if (directMatches.length > 0) {
+      lines.push("## Direct Matches");
+      lines.push("");
+      directMatches.forEach((m) => {
+        lines.push(`### ${m.test_name}`);
+        lines.push(`- File: ${m.file_path}`);
+        lines.push(`- ${m.explanation}`);
+        lines.push("");
+      });
+    }
+
+    if (changesNeeded.length > 0) {
+      lines.push("## Required Changes");
+      lines.push("");
+      changesNeeded.forEach((m) => {
+        lines.push(`### ${m.test_name}`);
+        lines.push(`- File: ${m.file_path}`);
+        lines.push(`- ${m.explanation}`);
+        if (m.modifications_needed.length > 0) {
+          lines.push("- Modifications needed:");
+          m.modifications_needed.forEach((mod) => {
+            lines.push(`  - ${mod}`);
+          });
+        }
+        lines.push("");
+      });
+    }
+
+    if (result.missing_scenarios.length > 0) {
+      lines.push("## Missing Scenarios");
+      lines.push("");
+      result.missing_scenarios.forEach((s) => {
+        lines.push(`### ${s.scenario_name} [${s.priority}] (${s.type.replace("_", " ")})`);
+        lines.push(`${s.description}`);
+        if (s.steps.length > 0) {
+          lines.push("");
+          s.steps.forEach((step) => lines.push(`  ${step}`));
+        }
+        if (s.suggested_file) {
+          lines.push(`- Suggested file: ${s.suggested_file}`);
+        }
+        lines.push("");
+      });
+    }
+
+    const blob = new Blob([lines.join("\n")], { type: "text/markdown" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `analysis-report-${new Date().toISOString().slice(0, 10)}.md`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
   }
 
   if (loading) {
@@ -925,7 +1013,7 @@ export default function ProjectDetail() {
                           <pre className="flex-1 text-xs font-mono whitespace-pre-wrap text-zinc-700 dark:text-zinc-300">
                             {ac.content}
                           </pre>
-                          <div className="flex gap-2 shrink-0">
+                          <div className="flex gap-2 shrink-0 flex-wrap justify-end">
                             <button
                               onClick={() => handleAnalyze(ac.id)}
                               disabled={analyzingAcId !== null}
@@ -933,6 +1021,22 @@ export default function ProjectDetail() {
                             >
                               {analyzingAcId === ac.id ? "Analyzing..." : "Analyze"}
                             </button>
+                            {ac.analysis_result && (
+                              <button
+                                onClick={() => handleViewAnalysis(ac)}
+                                className="rounded border border-green-300 dark:border-green-700 px-2 py-1 text-xs text-green-600 dark:text-green-400 hover:bg-green-50 dark:hover:bg-green-950 transition-colors"
+                              >
+                                View
+                              </button>
+                            )}
+                            {ac.analysis_result && (
+                              <button
+                                onClick={() => downloadReport(ac.analysis_result!, ac.content)}
+                                className="rounded border border-purple-300 dark:border-purple-700 px-2 py-1 text-xs text-purple-600 dark:text-purple-400 hover:bg-purple-50 dark:hover:bg-purple-950 transition-colors"
+                              >
+                                Download
+                              </button>
+                            )}
                             <button
                               onClick={() => handleStartEditAC(ac)}
                               className="rounded border border-zinc-300 dark:border-zinc-700 px-2 py-1 text-xs text-zinc-600 dark:text-zinc-400 hover:bg-zinc-50 dark:hover:bg-zinc-800 transition-colors"
@@ -962,7 +1066,20 @@ export default function ProjectDetail() {
         {/* Analysis Results */}
         {(analysisResult || analysisError || analyzingAcId) && (
           <section className="rounded-lg border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 p-5">
-            <h2 className="text-sm font-semibold mb-4">Analysis Results</h2>
+            <div className="flex items-center justify-between mb-4">
+              <h2 className="text-sm font-semibold">Analysis Results</h2>
+              {analysisResult && !analyzingAcId && (
+                <button
+                  onClick={() => {
+                    const ac = acs.find((a) => a.analysis_result === analysisResult) ?? acs[0];
+                    downloadReport(analysisResult, ac?.content ?? "");
+                  }}
+                  className="rounded-lg border border-purple-300 dark:border-purple-700 px-4 py-1.5 text-xs font-medium text-purple-600 dark:text-purple-400 hover:bg-purple-50 dark:hover:bg-purple-950 transition-colors"
+                >
+                  Download Report
+                </button>
+              )}
+            </div>
 
             {analyzingAcId && (
               <div className="flex items-center gap-3 py-4">

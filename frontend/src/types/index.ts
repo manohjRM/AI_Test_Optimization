@@ -155,6 +155,7 @@ export interface ACRead {
   id: string;
   project_id: string;
   content: string;
+  analysis_result: AnalysisResult | null;
   created_at: string;
   updated_at: string;
 }
