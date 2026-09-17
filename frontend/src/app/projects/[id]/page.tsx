@@ -482,26 +482,17 @@ export default function ProjectDetail() {
     }
   }
 
-  function downloadReport(result: AnalysisResult, acContent: string) {
-    const directMatches = result.matches.filter((m) => m.relevance === "direct");
-    const changesNeeded = result.matches.filter((m) => m.relevance === "required changes");
-    const escHtml = (s: string) => s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
-    const date = new Date().toLocaleDateString("en-US", { year: "numeric", month: "long", day: "numeric" });
+  const escHtml = (s: string) => s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
 
-    const html = `<!DOCTYPE html>
-<html lang="en">
-<head>
-<meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Test Analysis Report</title>
-<style>
-  :root { --green: #16a34a; --yellow: #ca8a04; --red: #dc2626; --orange: #ea580c; --purple: #9333ea; --zinc: #71717a; --bg: #ffffff; --fg: #18181b; --muted: #52525b; --border: #e4e4e7; --card: #fafafa; }
+  const REPORT_CSS = `
+  :root { --green: #16a34a; --yellow: #ca8a04; --red: #dc2626; --orange: #ea580c; --zinc: #71717a; --bg: #ffffff; --fg: #18181b; --muted: #52525b; --border: #e4e4e7; --card: #fafafa; }
   @media (prefers-color-scheme: dark) { :root { --bg: #18181b; --fg: #fafaf9; --muted: #a1a1aa; --border: #3f3f46; --card: #27272a; } }
   * { margin: 0; padding: 0; box-sizing: border-box; }
   body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; background: var(--bg); color: var(--fg); line-height: 1.6; padding: 40px; max-width: 900px; margin: 0 auto; }
   h1 { font-size: 1.5rem; margin-bottom: 4px; }
   .date { color: var(--muted); font-size: 0.85rem; margin-bottom: 24px; }
   h2 { font-size: 1.1rem; margin: 32px 0 12px; padding-bottom: 6px; border-bottom: 2px solid var(--border); }
+  h3 { font-size: 1rem; margin: 24px 0 8px; color: var(--fg); }
   .summary-text { color: var(--muted); margin-bottom: 16px; }
   .stats { display: flex; gap: 12px; margin-bottom: 24px; }
   .stat { flex: 1; padding: 16px; border-radius: 8px; text-align: center; }
@@ -532,64 +523,134 @@ export default function ProjectDetail() {
   .steps { background: var(--card); border: 1px solid var(--border); border-radius: 6px; padding: 10px 14px; margin: 8px 0; font-family: 'SF Mono', Consolas, monospace; font-size: 0.8rem; line-height: 1.8; }
   .suggested { font-size: 0.75rem; color: var(--muted); font-family: 'SF Mono', Consolas, monospace; }
   .ac-block { background: var(--card); border: 1px solid var(--border); border-radius: 8px; padding: 14px; font-family: 'SF Mono', Consolas, monospace; font-size: 0.85rem; white-space: pre-wrap; line-height: 1.7; margin-bottom: 16px; }
-  .section-empty { color: var(--muted); font-size: 0.85rem; font-style: italic; }
-  @media print { body { padding: 20px; } .stats { break-inside: avoid; } .card { break-inside: avoid; } }
-</style>
-</head>
-<body>
-<h1>Test Analysis Report</h1>
-<p class="date">${escHtml(date)}${project ? ` &mdash; ${escHtml(project.name)}` : ""}</p>
+  .divider { border: none; border-top: 3px solid var(--border); margin: 40px 0; }
+  .ac-number { display: inline-block; background: var(--fg); color: var(--bg); font-size: 0.7rem; font-weight: 700; width: 22px; height: 22px; line-height: 22px; text-align: center; border-radius: 99px; margin-right: 8px; vertical-align: middle; }
+  .toc { background: var(--card); border: 1px solid var(--border); border-radius: 8px; padding: 16px 20px; margin-bottom: 24px; }
+  .toc-item { display: flex; align-items: center; gap: 8px; padding: 4px 0; font-size: 0.85rem; color: var(--fg); text-decoration: none; }
+  .toc-item:hover { text-decoration: underline; }
+  .toc-stats { margin-left: auto; display: flex; gap: 8px; font-size: 0.75rem; font-weight: 600; }
+  .toc-green { color: var(--green); }
+  .toc-yellow { color: var(--yellow); }
+  .toc-red { color: var(--red); }
+  @media print { body { padding: 20px; } .stats, .card { break-inside: avoid; } .divider { break-before: page; } }`;
 
-<h2>Acceptance Criteria</h2>
-<div class="ac-block">${escHtml(acContent)}</div>
+  function renderResultSection(result: AnalysisResult) {
+    const dm = result.matches.filter((m) => m.relevance === "direct");
+    const cn = result.matches.filter((m) => m.relevance === "required changes");
 
-<h2>Summary</h2>
-<p class="summary-text">${escHtml(result.summary)}</p>
-<div class="stats">
-  <div class="stat stat-green"><div class="stat-num">${directMatches.length}</div><div class="stat-label">Covered</div></div>
-  <div class="stat stat-yellow"><div class="stat-num">${changesNeeded.length}</div><div class="stat-label">Partially Covered</div></div>
+    let h = "";
+    h += `<p class="summary-text">${escHtml(result.summary)}</p>\n`;
+    h += `<div class="stats">
+  <div class="stat stat-green"><div class="stat-num">${dm.length}</div><div class="stat-label">Covered</div></div>
+  <div class="stat stat-yellow"><div class="stat-num">${cn.length}</div><div class="stat-label">Partially Covered</div></div>
   <div class="stat stat-red"><div class="stat-num">${result.missing_scenarios.length}</div><div class="stat-label">Not Covered</div></div>
-</div>
+</div>\n`;
 
-${directMatches.length > 0 ? `<h2>Direct Matches</h2>
-${directMatches.map((m) => `<div class="card card-green">
-  <div class="test-name">${escHtml(m.test_name)}</div>
-  <div class="file-path">${escHtml(m.file_path)}</div>
-  <div class="explanation">${escHtml(m.explanation)}</div>
-</div>`).join("\n")}` : ""}
+    if (dm.length > 0) {
+      h += `<h3>Direct Matches</h3>\n`;
+      dm.forEach((m) => {
+        h += `<div class="card card-green"><div class="test-name">${escHtml(m.test_name)}</div><div class="file-path">${escHtml(m.file_path)}</div><div class="explanation">${escHtml(m.explanation)}</div></div>\n`;
+      });
+    }
 
-${changesNeeded.length > 0 ? `<h2>Required Changes</h2>
-${changesNeeded.map((m) => `<div class="card card-yellow">
-  <div class="test-name">${escHtml(m.test_name)}</div>
-  <div class="file-path">${escHtml(m.file_path)}</div>
-  <div class="explanation">${escHtml(m.explanation)}</div>
-  ${m.modifications_needed.length > 0 ? `<div class="mods-label">Modifications needed:</div>
-  <ul class="mods-list">${m.modifications_needed.map((mod) => `<li>${escHtml(mod)}</li>`).join("")}</ul>` : ""}
-</div>`).join("\n")}` : ""}
+    if (cn.length > 0) {
+      h += `<h3>Required Changes</h3>\n`;
+      cn.forEach((m) => {
+        h += `<div class="card card-yellow"><div class="test-name">${escHtml(m.test_name)}</div><div class="file-path">${escHtml(m.file_path)}</div><div class="explanation">${escHtml(m.explanation)}</div>`;
+        if (m.modifications_needed.length > 0) {
+          h += `<div class="mods-label">Modifications needed:</div><ul class="mods-list">${m.modifications_needed.map((mod) => `<li>${escHtml(mod)}</li>`).join("")}</ul>`;
+        }
+        h += `</div>\n`;
+      });
+    }
 
-${result.missing_scenarios.length > 0 ? `<h2>Missing Scenarios</h2>
-${result.missing_scenarios.map((s) => {
-      const priorityClass = s.priority === "high" ? "card-red" : s.priority === "medium" ? "card-orange" : "card-muted";
-      return `<div class="card ${priorityClass}">
-  <div><span class="test-name">${escHtml(s.scenario_name)}</span><span class="badge badge-${s.priority}">${s.priority}</span><span class="badge badge-type">${escHtml(s.type.replace("_", " "))}</span></div>
-  <div class="explanation" style="margin-top:4px">${escHtml(s.description)}</div>
-  ${s.steps.length > 0 ? `<div class="steps">${s.steps.map((step) => escHtml(step)).join("<br>")}</div>` : ""}
-  ${s.suggested_file ? `<div class="suggested">Suggested file: ${escHtml(s.suggested_file)}</div>` : ""}
-</div>`;
-    }).join("\n")}` : ""}
+    if (result.missing_scenarios.length > 0) {
+      h += `<h3>Missing Scenarios</h3>\n`;
+      result.missing_scenarios.forEach((s) => {
+        const pc = s.priority === "high" ? "card-red" : s.priority === "medium" ? "card-orange" : "card-muted";
+        h += `<div class="card ${pc}"><div><span class="test-name">${escHtml(s.scenario_name)}</span><span class="badge badge-${s.priority}">${s.priority}</span><span class="badge badge-type">${escHtml(s.type.replace("_", " "))}</span></div><div class="explanation" style="margin-top:4px">${escHtml(s.description)}</div>`;
+        if (s.steps.length > 0) h += `<div class="steps">${s.steps.map((step) => escHtml(step)).join("<br>")}</div>`;
+        if (s.suggested_file) h += `<div class="suggested">Suggested file: ${escHtml(s.suggested_file)}</div>`;
+        h += `</div>\n`;
+      });
+    }
 
-</body>
-</html>`;
+    return h;
+  }
 
+  function triggerDownload(html: string, filename: string) {
     const blob = new Blob([html], { type: "text/html" });
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
     a.href = url;
-    a.download = `analysis-report-${new Date().toISOString().slice(0, 10)}.html`;
+    a.download = filename;
     document.body.appendChild(a);
     a.click();
     document.body.removeChild(a);
     URL.revokeObjectURL(url);
+  }
+
+  function downloadReport(result: AnalysisResult, acContent: string) {
+    const date = new Date().toLocaleDateString("en-US", { year: "numeric", month: "long", day: "numeric" });
+    const html = `<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>Test Analysis Report</title><style>${REPORT_CSS}</style></head><body>
+<h1>Test Analysis Report</h1>
+<p class="date">${escHtml(date)}${project ? ` &mdash; ${escHtml(project.name)}` : ""}</p>
+<h2>Acceptance Criteria</h2>
+<div class="ac-block">${escHtml(acContent)}</div>
+<h2>Analysis</h2>
+${renderResultSection(result)}
+</body></html>`;
+    triggerDownload(html, `analysis-report-${new Date().toISOString().slice(0, 10)}.html`);
+  }
+
+  function downloadAllReports() {
+    const analyzed = acs.filter((ac) => ac.analysis_result);
+    if (analyzed.length === 0) return;
+
+    const date = new Date().toLocaleDateString("en-US", { year: "numeric", month: "long", day: "numeric" });
+    const totals = analyzed.reduce(
+      (acc, ac) => {
+        const r = ac.analysis_result!;
+        acc.direct += r.matches.filter((m) => m.relevance === "direct").length;
+        acc.changes += r.matches.filter((m) => m.relevance === "required changes").length;
+        acc.missing += r.missing_scenarios.length;
+        return acc;
+      },
+      { direct: 0, changes: 0, missing: 0 }
+    );
+
+    let toc = `<div class="toc">\n`;
+    analyzed.forEach((ac, i) => {
+      const r = ac.analysis_result!;
+      const dm = r.matches.filter((m) => m.relevance === "direct").length;
+      const cn = r.matches.filter((m) => m.relevance === "required changes").length;
+      const ms = r.missing_scenarios.length;
+      const label = ac.content.split("\n")[0].slice(0, 80);
+      toc += `<a class="toc-item" href="#ac-${i + 1}"><span class="ac-number">${i + 1}</span>${escHtml(label)}${ac.content.length > 80 ? "..." : ""}<span class="toc-stats"><span class="toc-green">${dm} covered</span><span class="toc-yellow">${cn} changes</span><span class="toc-red">${ms} missing</span></span></a>\n`;
+    });
+    toc += `</div>\n`;
+
+    let sections = "";
+    analyzed.forEach((ac, i) => {
+      if (i > 0) sections += `<hr class="divider">\n`;
+      sections += `<h2 id="ac-${i + 1}"><span class="ac-number">${i + 1}</span>Acceptance Criteria ${i + 1}</h2>\n`;
+      sections += `<div class="ac-block">${escHtml(ac.content)}</div>\n`;
+      sections += renderResultSection(ac.analysis_result!);
+    });
+
+    const html = `<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>Full Analysis Report</title><style>${REPORT_CSS}</style></head><body>
+<h1>Full Analysis Report</h1>
+<p class="date">${escHtml(date)}${project ? ` &mdash; ${escHtml(project.name)}` : ""}</p>
+<div class="stats">
+  <div class="stat stat-green"><div class="stat-num">${totals.direct}</div><div class="stat-label">Total Covered</div></div>
+  <div class="stat stat-yellow"><div class="stat-num">${totals.changes}</div><div class="stat-label">Total Changes</div></div>
+  <div class="stat stat-red"><div class="stat-num">${totals.missing}</div><div class="stat-label">Total Missing</div></div>
+</div>
+<p class="summary-text">${analyzed.length} acceptance criteria analyzed</p>
+${toc}
+${sections}
+</body></html>`;
+    triggerDownload(html, `full-analysis-report-${new Date().toISOString().slice(0, 10)}.html`);
   }
 
   if (loading) {
@@ -1012,15 +1073,25 @@ ${result.missing_scenarios.map((s) => {
             <div className="flex items-center justify-between mb-4">
               <h2 className="text-sm font-semibold">Acceptance Criteria</h2>
               {acs.length > 0 && (
-                <button
-                  onClick={handleAnalyzeAll}
-                  disabled={analyzingAll || analyzingAcId !== null}
-                  className="rounded-lg bg-blue-600 px-4 py-1.5 text-xs font-medium text-white hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-                >
-                  {analyzingAll
-                    ? `Analyzing ${analyzeAllProgress.done}/${analyzeAllProgress.total}...`
-                    : "Analyze All"}
-                </button>
+                <div className="flex gap-2">
+                  {acs.some((ac) => ac.analysis_result) && (
+                    <button
+                      onClick={downloadAllReports}
+                      className="rounded-lg border border-purple-300 dark:border-purple-700 px-4 py-1.5 text-xs font-medium text-purple-600 dark:text-purple-400 hover:bg-purple-50 dark:hover:bg-purple-950 transition-colors"
+                    >
+                      Download All
+                    </button>
+                  )}
+                  <button
+                    onClick={handleAnalyzeAll}
+                    disabled={analyzingAll || analyzingAcId !== null}
+                    className="rounded-lg bg-blue-600 px-4 py-1.5 text-xs font-medium text-white hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                  >
+                    {analyzingAll
+                      ? `Analyzing ${analyzeAllProgress.done}/${analyzeAllProgress.total}...`
+                      : "Analyze All"}
+                  </button>
+                </div>
               )}
             </div>
 
