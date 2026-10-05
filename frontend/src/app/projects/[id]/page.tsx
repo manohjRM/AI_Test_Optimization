@@ -510,6 +510,7 @@ export default function ProjectDetail() {
       if (viewingScript?.id === scriptId) {
         setViewingScript((prev) => prev ? { ...prev, status: "applied" as const } : null);
       }
+      fetchStats();
     } catch (err) {
       setGenerationError(err instanceof Error ? err.message : "Accept failed");
     } finally {
@@ -534,6 +535,7 @@ export default function ProjectDetail() {
       setGenerationError(err instanceof Error ? err.message : "Accept all failed");
     } finally {
       setAcceptingAll(false);
+      fetchStats();
     }
   }
 
