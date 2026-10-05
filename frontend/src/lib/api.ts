@@ -5,8 +5,12 @@ import type {
   ACCreate,
   ACRead,
   AnalysisResult,
+  ApplyScriptResponse,
   ConnectionTestRequest,
   ConnectionTestResult,
+  GenerateModifyRequest,
+  GenerateNewRequest,
+  GeneratedScript,
   OptimizationRequest,
   OptimizationResponse,
   Project,
@@ -128,6 +132,70 @@ export async function analyzeTests(
     body: JSON.stringify({ ac_id: acId }),
   });
 }
+
+// Generation
+
+export async function generateModify(
+  projectId: string,
+  payload: GenerateModifyRequest
+): Promise<GeneratedScript> {
+  return request<GeneratedScript>(`/projects/${projectId}/generate-modify`, {
+    method: "POST",
+    body: JSON.stringify(payload),
+  });
+}
+
+export async function generateNew(
+  projectId: string,
+  payload: GenerateNewRequest
+): Promise<GeneratedScript> {
+  return request<GeneratedScript>(`/projects/${projectId}/generate-new`, {
+    method: "POST",
+    body: JSON.stringify(payload),
+  });
+}
+
+export async function listGeneratedScripts(
+  projectId: string,
+  acId?: string
+): Promise<GeneratedScript[]> {
+  const params = acId ? `?ac_id=${acId}` : "";
+  return request<GeneratedScript[]>(
+    `/projects/${projectId}/generated-scripts${params}`
+  );
+}
+
+export async function applyScript(
+  projectId: string,
+  scriptId: string
+): Promise<ApplyScriptResponse> {
+  return request<ApplyScriptResponse>(
+    `/projects/${projectId}/generated-scripts/${scriptId}/apply`,
+    { method: "POST" }
+  );
+}
+
+export async function rejectScript(
+  projectId: string,
+  scriptId: string
+): Promise<GeneratedScript> {
+  return request<GeneratedScript>(
+    `/projects/${projectId}/generated-scripts/${scriptId}/reject`,
+    { method: "POST" }
+  );
+}
+
+export async function deleteGeneratedScript(
+  projectId: string,
+  scriptId: string
+): Promise<void> {
+  await request<void>(
+    `/projects/${projectId}/generated-scripts/${scriptId}`,
+    { method: "DELETE" }
+  );
+}
+
+// Test Stats
 
 export async function getTestStats(id: string): Promise<TestStats> {
   return request<TestStats>(`/projects/${id}/test-stats`);

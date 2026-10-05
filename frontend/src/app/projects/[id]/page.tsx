@@ -18,8 +18,14 @@ import {
   updateAC,
   analyzeTests,
   generateSummary,
+  generateModify,
+  generateNew,
+  listGeneratedScripts,
+  applyScript,
+  rejectScript,
 } from "@/lib/api";
-import type { Project, TestStats, TestDirectory, TestFile, RepoDir, ACRead, AnalysisResult } from "@/types";
+import CodeViewerModal from "@/components/CodeViewerModal";
+import type { Project, TestStats, TestDirectory, TestFile, RepoDir, ACRead, AnalysisResult, GeneratedScript } from "@/types";
 
 
 function DirectoryNode({ dir }: { dir: TestDirectory }) {
@@ -240,17 +246,27 @@ export default function ProjectDetail() {
   const [analyzingAll, setAnalyzingAll] = useState(false);
   const [analyzeAllProgress, setAnalyzeAllProgress] = useState({ done: 0, total: 0 });
 
+  // Generation
+  const [activeAcId, setActiveAcId] = useState<string | null>(null);
+  const [generatedScripts, setGeneratedScripts] = useState<GeneratedScript[]>([]);
+  const [generatingKey, setGeneratingKey] = useState<string | null>(null);
+  const [generationError, setGenerationError] = useState<string | null>(null);
+  const [viewingScript, setViewingScript] = useState<GeneratedScript | null>(null);
+  const [applyingScript, setApplyingScript] = useState(false);
+
   useEffect(() => {
     async function fetch() {
       try {
-        const [data, acList] = await Promise.all([
+        const [data, acList, scripts] = await Promise.all([
           getProject(projectId),
           listACs(projectId),
+          listGeneratedScripts(projectId),
         ]);
         setProject(data);
         setName(data.name);
         setDescription(data.description ?? "");
         setAcs(acList);
+        setGeneratedScripts(scripts);
       } catch (err) {
         setError(
           err instanceof Error ? err.message : "Failed to load project"
@@ -357,6 +373,7 @@ export default function ProjectDetail() {
 
   async function handleAnalyze(acId: string) {
     setAnalyzingAcId(acId);
+    setActiveAcId(acId);
     setAnalysisResult(null);
     setAnalysisError(null);
     setResultsPanel(null);
@@ -420,6 +437,89 @@ export default function ProjectDetail() {
     }
   }
 
+  async function handleGenerateModify(acId: string, match: { file_path: string; test_name: string; modifications_needed: string[] }) {
+    const key = `modify:${match.file_path}:${match.test_name}`;
+    setGeneratingKey(key);
+    setGenerationError(null);
+    try {
+      const script = await generateModify(projectId, {
+        ac_id: acId,
+        file_path: match.file_path,
+        test_name: match.test_name,
+        modifications_needed: match.modifications_needed,
+      });
+      setGeneratedScripts((prev) => [script, ...prev]);
+      setViewingScript(script);
+    } catch (err) {
+      setGenerationError(err instanceof Error ? err.message : "Generation failed");
+    } finally {
+      setGeneratingKey(null);
+    }
+  }
+
+  async function handleGenerateNew(acId: string, scenario: { scenario_name: string; type: string; description: string; steps: string[]; priority: string; suggested_file: string }) {
+    const key = `new:${scenario.scenario_name}`;
+    setGeneratingKey(key);
+    setGenerationError(null);
+    try {
+      const script = await generateNew(projectId, {
+        ac_id: acId,
+        scenario_name: scenario.scenario_name,
+        scenario_type: scenario.type,
+        description: scenario.description,
+        steps: scenario.steps,
+        priority: scenario.priority,
+        suggested_file: scenario.suggested_file,
+      });
+      setGeneratedScripts((prev) => [script, ...prev]);
+      setViewingScript(script);
+    } catch (err) {
+      setGenerationError(err instanceof Error ? err.message : "Generation failed");
+    } finally {
+      setGeneratingKey(null);
+    }
+  }
+
+  async function handleApplyScript(scriptId: string) {
+    setApplyingScript(true);
+    try {
+      await applyScript(projectId, scriptId);
+      setGeneratedScripts((prev) =>
+        prev.map((s) => (s.id === scriptId ? { ...s, status: "applied" as const } : s))
+      );
+      if (viewingScript?.id === scriptId) {
+        setViewingScript((prev) => prev ? { ...prev, status: "applied" as const } : null);
+      }
+    } catch (err) {
+      setGenerationError(err instanceof Error ? err.message : "Apply failed");
+    } finally {
+      setApplyingScript(false);
+    }
+  }
+
+  async function handleRejectScript(scriptId: string) {
+    try {
+      await rejectScript(projectId, scriptId);
+      setGeneratedScripts((prev) =>
+        prev.map((s) => (s.id === scriptId ? { ...s, status: "rejected" as const } : s))
+      );
+      if (viewingScript?.id === scriptId) {
+        setViewingScript((prev) => prev ? { ...prev, status: "rejected" as const } : null);
+      }
+    } catch (err) {
+      setGenerationError(err instanceof Error ? err.message : "Reject failed");
+    }
+  }
+
+  function findScript(filePath: string, testNameOrScenario: string): GeneratedScript | undefined {
+    return generatedScripts.find(
+      (s) => s.file_path === filePath && (
+        (s.source_item as Record<string, unknown>).test_name === testNameOrScenario ||
+        (s.source_item as Record<string, unknown>).scenario_name === testNameOrScenario
+      )
+    );
+  }
+
   function handleStartEditAC(ac: ACRead) {
     setEditingAcId(ac.id);
     setEditingAcContent(ac.content);
@@ -476,6 +576,7 @@ export default function ProjectDetail() {
 
   function handleViewAnalysis(ac: ACRead) {
     if (ac.analysis_result) {
+      setActiveAcId(ac.id);
       setAnalysisResult(ac.analysis_result);
       setResultsPanel(null);
       setAnalysisError(null);
@@ -1364,38 +1465,60 @@ ${sections}
                           No tests require changes.
                         </p>
                       )}
-                      {changesNeeded.map((match, i) => (
-                        <div
-                          key={i}
-                          className="rounded-lg border border-yellow-200 dark:border-yellow-800 bg-yellow-50 dark:bg-yellow-950 p-3"
-                        >
-                          <div className="flex items-baseline gap-2 mb-1">
-                            <span className="font-mono text-xs font-semibold">
-                              {match.test_name}
-                            </span>
-                          </div>
-                          <p className="text-xs text-zinc-500 dark:text-zinc-400 font-mono mb-1">
-                            {match.file_path}
-                          </p>
-                          <p className="text-xs text-zinc-600 dark:text-zinc-300">
-                            {match.explanation}
-                          </p>
-                          {match.modifications_needed.length > 0 && (
-                            <div className="mt-2 border-t border-yellow-200 dark:border-yellow-800 pt-2">
-                              <p className="text-xs font-medium text-yellow-700 dark:text-yellow-300 mb-1">
-                                Modifications needed:
-                              </p>
-                              <ul className="list-disc list-inside space-y-0.5">
-                                {match.modifications_needed.map((mod, j) => (
-                                  <li key={j} className="text-xs text-yellow-600 dark:text-yellow-400">
-                                    {mod}
-                                  </li>
-                                ))}
-                              </ul>
+                      {changesNeeded.map((match, i) => {
+                        const existing = findScript(match.file_path, match.test_name);
+                        const isGenerating = generatingKey === `modify:${match.file_path}:${match.test_name}`;
+                        return (
+                          <div
+                            key={i}
+                            className="rounded-lg border border-yellow-200 dark:border-yellow-800 bg-yellow-50 dark:bg-yellow-950 p-3"
+                          >
+                            <div className="flex items-center justify-between mb-1">
+                              <span className="font-mono text-xs font-semibold">
+                                {match.test_name}
+                              </span>
+                              <div className="flex gap-2 shrink-0">
+                                {existing ? (
+                                  <button
+                                    onClick={() => setViewingScript(existing)}
+                                    className="rounded border border-green-300 dark:border-green-700 px-2 py-0.5 text-xs text-green-600 dark:text-green-400 hover:bg-green-50 dark:hover:bg-green-950 transition-colors"
+                                  >
+                                    View Code ({existing.status})
+                                  </button>
+                                ) : (
+                                  <button
+                                    onClick={() => activeAcId && handleGenerateModify(activeAcId, match)}
+                                    disabled={isGenerating || !activeAcId}
+                                    className="rounded border border-purple-300 dark:border-purple-700 px-2 py-0.5 text-xs text-purple-600 dark:text-purple-400 hover:bg-purple-50 dark:hover:bg-purple-950 disabled:opacity-50 transition-colors"
+                                  >
+                                    {isGenerating ? "Generating..." : "Generate Modification"}
+                                  </button>
+                                )}
+                              </div>
                             </div>
-                          )}
-                        </div>
-                      ))}
+                            <p className="text-xs text-zinc-500 dark:text-zinc-400 font-mono mb-1">
+                              {match.file_path}
+                            </p>
+                            <p className="text-xs text-zinc-600 dark:text-zinc-300">
+                              {match.explanation}
+                            </p>
+                            {match.modifications_needed.length > 0 && (
+                              <div className="mt-2 border-t border-yellow-200 dark:border-yellow-800 pt-2">
+                                <p className="text-xs font-medium text-yellow-700 dark:text-yellow-300 mb-1">
+                                  Modifications needed:
+                                </p>
+                                <ul className="list-disc list-inside space-y-0.5">
+                                  {match.modifications_needed.map((mod, j) => (
+                                    <li key={j} className="text-xs text-yellow-600 dark:text-yellow-400">
+                                      {mod}
+                                    </li>
+                                  ))}
+                                </ul>
+                              </div>
+                            )}
+                          </div>
+                        );
+                      })}
                     </div>
                   )}
 
@@ -1430,38 +1553,62 @@ ${sections}
                             <p className="text-xs font-medium text-zinc-400 mb-1">
                               {priorityLabels[priority]} ({scenarios.length})
                             </p>
-                            {scenarios.map((scenario, i) => (
-                              <div
-                                key={i}
-                                className={`rounded-lg border p-3 mb-2 ${priorityColors[priority]}`}
-                              >
-                                <div className="flex items-center gap-2 mb-1">
-                                  <span className="text-xs font-semibold">
-                                    {scenario.scenario_name}
-                                  </span>
-                                  <span className="rounded-full bg-zinc-200 dark:bg-zinc-700 px-2 py-0.5 text-xs text-zinc-600 dark:text-zinc-300">
-                                    {scenario.type.replace("_", " ")}
-                                  </span>
-                                </div>
-                                <p className="text-xs text-zinc-600 dark:text-zinc-300 mb-2">
-                                  {scenario.description}
-                                </p>
-                                {scenario.steps.length > 0 && (
-                                  <div className="bg-white/60 dark:bg-zinc-900/60 rounded p-2 mb-2">
-                                    {scenario.steps.map((step, j) => (
-                                      <p key={j} className="text-xs font-mono text-zinc-600 dark:text-zinc-400">
-                                        {step}
-                                      </p>
-                                    ))}
+                            {scenarios.map((scenario, i) => {
+                              const existing = findScript(scenario.suggested_file, scenario.scenario_name);
+                              const isGenerating = generatingKey === `new:${scenario.scenario_name}`;
+                              return (
+                                <div
+                                  key={i}
+                                  className={`rounded-lg border p-3 mb-2 ${priorityColors[priority]}`}
+                                >
+                                  <div className="flex items-center justify-between mb-1">
+                                    <div className="flex items-center gap-2">
+                                      <span className="text-xs font-semibold">
+                                        {scenario.scenario_name}
+                                      </span>
+                                      <span className="rounded-full bg-zinc-200 dark:bg-zinc-700 px-2 py-0.5 text-xs text-zinc-600 dark:text-zinc-300">
+                                        {scenario.type.replace("_", " ")}
+                                      </span>
+                                    </div>
+                                    <div className="flex gap-2 shrink-0">
+                                      {existing ? (
+                                        <button
+                                          onClick={() => setViewingScript(existing)}
+                                          className="rounded border border-green-300 dark:border-green-700 px-2 py-0.5 text-xs text-green-600 dark:text-green-400 hover:bg-green-50 dark:hover:bg-green-950 transition-colors"
+                                        >
+                                          View Code ({existing.status})
+                                        </button>
+                                      ) : (
+                                        <button
+                                          onClick={() => activeAcId && handleGenerateNew(activeAcId, scenario)}
+                                          disabled={isGenerating || !activeAcId}
+                                          className="rounded border border-purple-300 dark:border-purple-700 px-2 py-0.5 text-xs text-purple-600 dark:text-purple-400 hover:bg-purple-50 dark:hover:bg-purple-950 disabled:opacity-50 transition-colors"
+                                        >
+                                          {isGenerating ? "Generating..." : "Generate Test"}
+                                        </button>
+                                      )}
+                                    </div>
                                   </div>
-                                )}
-                                {scenario.suggested_file && (
-                                  <p className="text-xs text-zinc-400 font-mono">
-                                    Suggested file: {scenario.suggested_file}
+                                  <p className="text-xs text-zinc-600 dark:text-zinc-300 mb-2">
+                                    {scenario.description}
                                   </p>
-                                )}
-                              </div>
-                            ))}
+                                  {scenario.steps.length > 0 && (
+                                    <div className="bg-white/60 dark:bg-zinc-900/60 rounded p-2 mb-2">
+                                      {scenario.steps.map((step, j) => (
+                                        <p key={j} className="text-xs font-mono text-zinc-600 dark:text-zinc-400">
+                                          {step}
+                                        </p>
+                                      ))}
+                                    </div>
+                                  )}
+                                  {scenario.suggested_file && (
+                                    <p className="text-xs text-zinc-400 font-mono">
+                                      Suggested file: {scenario.suggested_file}
+                                    </p>
+                                  )}
+                                </div>
+                              );
+                            })}
                           </div>
                         );
                       })}
@@ -1497,6 +1644,27 @@ ${sections}
 
         </div>{/* End grid */}
       </div>
+
+      {/* Generation error toast */}
+      {generationError && (
+        <div className="fixed bottom-6 right-6 z-40 rounded-lg bg-red-600 text-white px-4 py-3 text-sm shadow-lg">
+          <div className="flex items-center gap-3">
+            <span>{generationError}</span>
+            <button onClick={() => setGenerationError(null)} className="text-white/80 hover:text-white">x</button>
+          </div>
+        </div>
+      )}
+
+      {/* Code viewer modal */}
+      {viewingScript && (
+        <CodeViewerModal
+          script={viewingScript}
+          onClose={() => setViewingScript(null)}
+          onApply={handleApplyScript}
+          onReject={handleRejectScript}
+          applying={applyingScript}
+        />
+      )}
     </main>
   );
 }

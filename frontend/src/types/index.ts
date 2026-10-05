@@ -147,6 +147,43 @@ export interface AnalysisResult {
   coverage_assessment: CoverageAssessment | null;
 }
 
+export interface GenerateModifyRequest {
+  ac_id: string;
+  file_path: string;
+  test_name: string;
+  modifications_needed: string[];
+}
+
+export interface GenerateNewRequest {
+  ac_id: string;
+  scenario_name: string;
+  scenario_type: string;
+  description: string;
+  steps: string[];
+  priority: string;
+  suggested_file: string;
+}
+
+export interface GeneratedScript {
+  id: string;
+  project_id: string;
+  ac_id: string;
+  action: "modify" | "generate" | "append";
+  status: "pending" | "applied" | "rejected";
+  file_path: string;
+  source_item: Record<string, unknown>;
+  original_content: string | null;
+  generated_content: string;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface ApplyScriptResponse {
+  success: boolean;
+  file_path: string;
+  message: string;
+}
+
 export interface ACCreate {
   content: string;
 }
