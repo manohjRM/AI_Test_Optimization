@@ -1427,7 +1427,7 @@ ${sections}
                         ? "Generated"
                         : "Generate All"}
                   </button>
-                  {generatedScripts.some((s) => s.status === "pending") && (
+                  {generateAllDone && generatedScripts.some((s) => s.status === "pending") && (
                     <button
                       onClick={handleAcceptAll}
                       disabled={acceptingAll || acceptingScript}
