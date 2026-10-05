@@ -255,6 +255,7 @@ export default function ProjectDetail() {
   const [applyingScript, setApplyingScript] = useState(false);
   const [generatingAll, setGeneratingAll] = useState(false);
   const [generateAllProgress, setGenerateAllProgress] = useState({ done: 0, total: 0 });
+  const [generateAllDone, setGenerateAllDone] = useState(false);
 
   useEffect(() => {
     async function fetch() {
@@ -379,6 +380,7 @@ export default function ProjectDetail() {
     setAnalysisResult(null);
     setAnalysisError(null);
     setResultsPanel(null);
+    setGenerateAllDone(false);
     try {
       const result = await analyzeTests(projectId, acId);
       setAnalysisResult(result);
@@ -403,17 +405,31 @@ export default function ProjectDetail() {
     setAnalysisResult(null);
     setAnalysisError(null);
     setResultsPanel(null);
+    setGeneratedScripts([]);
+    setGenerateAllDone(false);
     setAnalyzeAllProgress({ done: 0, total: acs.length });
+    let lastResult: AnalysisResult | null = null;
+    let lastAcId: string | null = null;
     try {
       for (let i = 0; i < acs.length; i++) {
         setAnalyzingAcId(acs[i].id);
-        await analyzeTests(projectId, acs[i].id);
+        const result = await analyzeTests(projectId, acs[i].id);
+        lastResult = result;
+        lastAcId = acs[i].id;
         setAnalyzeAllProgress({ done: i + 1, total: acs.length });
       }
-      const refreshedAcs = await listACs(projectId);
+      const [refreshedAcs, refreshedProject, scripts] = await Promise.all([
+        listACs(projectId),
+        getProject(projectId),
+        listGeneratedScripts(projectId),
+      ]);
       setAcs(refreshedAcs);
-      const refreshedProject = await getProject(projectId);
       setProject(refreshedProject);
+      setGeneratedScripts(scripts);
+      if (lastResult && lastAcId) {
+        setAnalysisResult(lastResult);
+        setActiveAcId(lastAcId);
+      }
     } catch (err) {
       setAnalysisError(
         err instanceof Error ? err.message : "Analyze all failed"
@@ -560,6 +576,7 @@ export default function ProjectDetail() {
       setGenerationError(err instanceof Error ? err.message : "Generate all failed");
     } finally {
       setGeneratingAll(false);
+      setGenerateAllDone(true);
     }
   }
 
@@ -1377,12 +1394,14 @@ ${sections}
                 <div className="flex gap-2">
                   <button
                     onClick={handleGenerateAll}
-                    disabled={generatingAll || !activeAcId || generatingKey !== null}
+                    disabled={generatingAll || generateAllDone || !activeAcId || generatingKey !== null}
                     className="rounded-lg bg-purple-600 px-4 py-1.5 text-xs font-medium text-white hover:bg-purple-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
                   >
                     {generatingAll
                       ? `Generating ${generateAllProgress.done}/${generateAllProgress.total}...`
-                      : "Generate All"}
+                      : generateAllDone
+                        ? "Generated"
+                        : "Generate All"}
                   </button>
                   <button
                     onClick={() => {
