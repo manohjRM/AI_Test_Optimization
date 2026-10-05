@@ -596,6 +596,36 @@ def write_test_file(repo_path: Path, relative_file_path: str, content: str) -> b
         return False
 
 
+def git_add_and_commit(repo_path: Path, relative_file_path: str, message: str) -> tuple[bool, str]:
+    """Stage a file and commit it. Returns (success, output_or_error)."""
+    import subprocess
+
+    try:
+        add_proc = subprocess.run(
+            ["git", "add", relative_file_path],
+            cwd=str(repo_path),
+            capture_output=True,
+            text=True,
+            timeout=30,
+        )
+        if add_proc.returncode != 0:
+            return False, f"git add failed: {add_proc.stderr.strip()}"
+
+        commit_proc = subprocess.run(
+            ["git", "commit", "-m", message],
+            cwd=str(repo_path),
+            capture_output=True,
+            text=True,
+            timeout=30,
+        )
+        if commit_proc.returncode != 0:
+            return False, f"git commit failed: {commit_proc.stderr.strip()}"
+
+        return True, commit_proc.stdout.strip()
+    except Exception as e:
+        return False, f"git operation failed: {e}"
+
+
 def file_exists_in_repo(repo_path: Path, relative_file_path: str) -> bool:
     """Check if a file exists within the repo."""
     target = (repo_path / relative_file_path).resolve()

@@ -21,7 +21,7 @@ import {
   generateModify,
   generateNew,
   listGeneratedScripts,
-  applyScript,
+  acceptScript,
   rejectScript,
 } from "@/lib/api";
 import CodeViewerModal from "@/components/CodeViewerModal";
@@ -252,12 +252,12 @@ export default function ProjectDetail() {
   const [generatingKey, setGeneratingKey] = useState<string | null>(null);
   const [generationError, setGenerationError] = useState<string | null>(null);
   const [viewingScript, setViewingScript] = useState<GeneratedScript | null>(null);
-  const [applyingScript, setApplyingScript] = useState(false);
+  const [acceptingScript, setAcceptingScript] = useState(false);
   const [generatingAll, setGeneratingAll] = useState(false);
   const [generateAllProgress, setGenerateAllProgress] = useState({ done: 0, total: 0 });
   const [generateAllDone, setGenerateAllDone] = useState(false);
-  const [applyingAll, setApplyingAll] = useState(false);
-  const [applyAllProgress, setApplyAllProgress] = useState({ done: 0, total: 0 });
+  const [acceptingAll, setAcceptingAll] = useState(false);
+  const [acceptAllProgress, setAcceptAllProgress] = useState({ done: 0, total: 0 });
 
   useEffect(() => {
     async function fetch() {
@@ -500,10 +500,10 @@ export default function ProjectDetail() {
     }
   }
 
-  async function handleApplyScript(scriptId: string) {
-    setApplyingScript(true);
+  async function handleAcceptScript(scriptId: string) {
+    setAcceptingScript(true);
     try {
-      await applyScript(projectId, scriptId);
+      await acceptScript(projectId, scriptId);
       setGeneratedScripts((prev) =>
         prev.map((s) => (s.id === scriptId ? { ...s, status: "applied" as const } : s))
       );
@@ -511,29 +511,29 @@ export default function ProjectDetail() {
         setViewingScript((prev) => prev ? { ...prev, status: "applied" as const } : null);
       }
     } catch (err) {
-      setGenerationError(err instanceof Error ? err.message : "Apply failed");
+      setGenerationError(err instanceof Error ? err.message : "Accept failed");
     } finally {
-      setApplyingScript(false);
+      setAcceptingScript(false);
     }
   }
 
-  async function handleApplyAll() {
+  async function handleAcceptAll() {
     const pending = generatedScripts.filter((s) => s.status === "pending");
     if (pending.length === 0) return;
-    setApplyingAll(true);
-    setApplyAllProgress({ done: 0, total: pending.length });
+    setAcceptingAll(true);
+    setAcceptAllProgress({ done: 0, total: pending.length });
     try {
       for (let i = 0; i < pending.length; i++) {
-        await applyScript(projectId, pending[i].id);
+        await acceptScript(projectId, pending[i].id);
         setGeneratedScripts((prev) =>
           prev.map((s) => (s.id === pending[i].id ? { ...s, status: "applied" as const } : s))
         );
-        setApplyAllProgress({ done: i + 1, total: pending.length });
+        setAcceptAllProgress({ done: i + 1, total: pending.length });
       }
     } catch (err) {
-      setGenerationError(err instanceof Error ? err.message : "Apply all failed");
+      setGenerationError(err instanceof Error ? err.message : "Accept all failed");
     } finally {
-      setApplyingAll(false);
+      setAcceptingAll(false);
     }
   }
 
@@ -1427,13 +1427,13 @@ ${sections}
                   </button>
                   {generatedScripts.some((s) => s.status === "pending") && (
                     <button
-                      onClick={handleApplyAll}
-                      disabled={applyingAll || applyingScript}
+                      onClick={handleAcceptAll}
+                      disabled={acceptingAll || acceptingScript}
                       className="rounded-lg bg-green-600 px-4 py-1.5 text-xs font-medium text-white hover:bg-green-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
                     >
-                      {applyingAll
-                        ? `Applying ${applyAllProgress.done}/${applyAllProgress.total}...`
-                        : "Apply All"}
+                      {acceptingAll
+                        ? `Accepting ${acceptAllProgress.done}/${acceptAllProgress.total}...`
+                        : "Accept All"}
                     </button>
                   )}
                   <button
@@ -1839,9 +1839,9 @@ ${sections}
         <CodeViewerModal
           script={viewingScript}
           onClose={() => setViewingScript(null)}
-          onApply={handleApplyScript}
+          onAccept={handleAcceptScript}
           onReject={handleRejectScript}
-          applying={applyingScript}
+          accepting={acceptingScript}
         />
       )}
     </main>

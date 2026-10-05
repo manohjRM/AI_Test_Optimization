@@ -165,12 +165,12 @@ export async function listGeneratedScripts(
   );
 }
 
-export async function applyScript(
+export async function acceptScript(
   projectId: string,
   scriptId: string
 ): Promise<ApplyScriptResponse> {
   return request<ApplyScriptResponse>(
-    `/projects/${projectId}/generated-scripts/${scriptId}/apply`,
+    `/projects/${projectId}/generated-scripts/${scriptId}/accept`,
     { method: "POST" }
   );
 }

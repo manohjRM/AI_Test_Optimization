@@ -20,6 +20,7 @@ from app.schemas.generation import (
 )
 from app.services.repo_manager import (
     file_exists_in_repo,
+    git_add_and_commit,
     read_test_file,
     write_test_file,
 )
@@ -190,8 +191,8 @@ async def get_generated_script(
     return script
 
 
-@router.post("/{project_id}/generated-scripts/{script_id}/apply", response_model=ApplyScriptResponse)
-async def apply_script(
+@router.post("/{project_id}/generated-scripts/{script_id}/accept", response_model=ApplyScriptResponse)
+async def accept_script(
     project_id: uuid.UUID,
     script_id: uuid.UUID,
     db: AsyncSession = Depends(get_db),
@@ -205,21 +206,31 @@ async def apply_script(
         raise HTTPException(status_code=400, detail="Repository is not available")
 
     repo_path = Path(project.local_path)
-    success = write_test_file(repo_path, script.file_path, script.generated_content)
-    if not success:
+    write_ok = write_test_file(repo_path, script.file_path, script.generated_content)
+    if not write_ok:
         raise HTTPException(
             status_code=500,
             detail=f"Failed to write file: {script.file_path}",
         )
 
+    action_label = "Modify" if script.action.value == "modify" else "Generate"
+    source = script.source_item or {}
+    item_name = source.get("test_name") or source.get("scenario_name") or script.file_path
+    commit_msg = f"[AI Agent] {action_label}: {item_name}\n\nFile: {script.file_path}"
+    git_ok, git_output = git_add_and_commit(repo_path, script.file_path, commit_msg)
+
     script.status = ScriptStatus.APPLIED
     await db.commit()
     await db.refresh(script)
 
+    message = f"Accepted and committed: {script.file_path}"
+    if not git_ok:
+        message = f"Accepted (file written) but git commit failed: {git_output}"
+
     return {
         "success": True,
         "file_path": script.file_path,
-        "message": f"Script applied to {script.file_path}",
+        "message": message,
     }
 
 

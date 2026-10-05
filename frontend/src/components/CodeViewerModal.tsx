@@ -1,4 +1,4 @@
-// ABOUTME: Modal for reviewing generated/modified test code before applying.
+// ABOUTME: Modal for reviewing generated/modified test code before accepting.
 // ABOUTME: Shows unified git-style diff for modifications, full code view for new files.
 
 "use client";
@@ -95,17 +95,17 @@ function computeUnifiedDiff(original: string, generated: string): DiffLine[] {
 interface CodeViewerModalProps {
   script: GeneratedScript;
   onClose: () => void;
-  onApply: (scriptId: string) => void;
+  onAccept: (scriptId: string) => void;
   onReject: (scriptId: string) => void;
-  applying: boolean;
+  accepting: boolean;
 }
 
 export default function CodeViewerModal({
   script,
   onClose,
-  onApply,
+  onAccept,
   onReject,
-  applying,
+  accepting,
 }: CodeViewerModalProps) {
   const isModification = script.action === "modify" || script.action === "append";
   const actionLabel =
@@ -263,17 +263,17 @@ export default function CodeViewerModal({
             <>
               <button
                 onClick={() => onReject(script.id)}
-                disabled={applying}
+                disabled={accepting}
                 className="rounded-lg border border-red-200 dark:border-red-800 px-4 py-2 text-sm font-medium text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-950 disabled:opacity-50 transition-colors"
               >
                 Reject
               </button>
               <button
-                onClick={() => onApply(script.id)}
-                disabled={applying}
+                onClick={() => onAccept(script.id)}
+                disabled={accepting}
                 className="rounded-lg bg-green-600 px-4 py-2 text-sm font-medium text-white hover:bg-green-700 disabled:opacity-50 transition-colors"
               >
-                {applying ? "Applying..." : "Apply to Repo"}
+                {accepting ? "Accepting..." : "Accept"}
               </button>
             </>
           )}
