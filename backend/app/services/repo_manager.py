@@ -596,6 +596,77 @@ def write_test_file(repo_path: Path, relative_file_path: str, content: str) -> b
         return False
 
 
+def merge_generated_content(
+    original: str | None,
+    generated: str,
+    current_on_disk: str,
+) -> str:
+    """Merge generated content with the current file when another script was accepted first.
+
+    When multiple scripts target the same file, each was generated against the
+    original file. After the first accept, the file on disk no longer matches
+    the original. This function extracts the new content this script added and
+    inserts it into the current file at the correct position.
+    """
+    if original is None:
+        return generated
+
+    orig_lines = original.rstrip("\n").split("\n") if original.strip() else []
+    gen_lines = generated.rstrip("\n").split("\n") if generated.strip() else []
+    cur_lines = current_on_disk.rstrip("\n").split("\n") if current_on_disk.strip() else []
+
+    # Walk from the start to find the longest common prefix between original and generated
+    prefix_len = 0
+    for i in range(min(len(orig_lines), len(gen_lines))):
+        if orig_lines[i] == gen_lines[i]:
+            prefix_len = i + 1
+        else:
+            break
+
+    # Walk from the end to find the longest common suffix
+    suffix_len = 0
+    max_suffix = min(len(orig_lines) - prefix_len, len(gen_lines) - prefix_len)
+    for i in range(1, max_suffix + 1):
+        if orig_lines[-i] == gen_lines[-i]:
+            suffix_len = i
+        else:
+            break
+
+    # The new content is everything between the common prefix and suffix
+    if suffix_len > 0:
+        new_lines = gen_lines[prefix_len:-suffix_len]
+        suffix_lines = gen_lines[-suffix_len:]
+    else:
+        new_lines = gen_lines[prefix_len:]
+        suffix_lines = []
+
+    if not new_lines:
+        return current_on_disk
+
+    # Find where to insert in the current file:
+    # If there's a common suffix (e.g., closing brace), insert before it
+    if suffix_lines:
+        # Find the suffix in the current file from the end
+        insert_pos = len(cur_lines)
+        for i in range(1, len(cur_lines) + 1):
+            match_count = 0
+            for j in range(len(suffix_lines)):
+                if i + j <= len(cur_lines) and cur_lines[-(i + j)] == suffix_lines[-(1 + j)]:
+                    match_count += 1
+                else:
+                    break
+            if match_count == len(suffix_lines):
+                insert_pos = len(cur_lines) - i - len(suffix_lines) + 1
+                break
+
+        result_lines = cur_lines[:insert_pos] + [""] + new_lines + cur_lines[insert_pos:]
+    else:
+        # No suffix — append at the end
+        result_lines = cur_lines + [""] + new_lines
+
+    return "\n".join(result_lines) + "\n"
+
+
 def git_add_and_commit(repo_path: Path, relative_file_path: str, message: str) -> tuple[bool, str]:
     """Stage a file and commit it. Returns (success, output_or_error)."""
     import subprocess

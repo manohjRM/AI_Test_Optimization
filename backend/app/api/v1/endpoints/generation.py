@@ -21,6 +21,7 @@ from app.schemas.generation import (
 from app.services.repo_manager import (
     file_exists_in_repo,
     git_add_and_commit,
+    merge_generated_content,
     read_test_file,
     write_test_file,
 )
@@ -206,7 +207,19 @@ async def accept_script(
         raise HTTPException(status_code=400, detail="Repository is not available")
 
     repo_path = Path(project.local_path)
-    write_ok = write_test_file(repo_path, script.file_path, script.generated_content)
+
+    # Determine content to write — merge if the file changed since generation
+    content_to_write = script.generated_content
+    if script.action.value in ("modify", "append"):
+        current_on_disk = read_test_file(repo_path, script.file_path)
+        if current_on_disk is not None and current_on_disk != (script.original_content or ""):
+            content_to_write = merge_generated_content(
+                original=script.original_content,
+                generated=script.generated_content,
+                current_on_disk=current_on_disk,
+            )
+
+    write_ok = write_test_file(repo_path, script.file_path, content_to_write)
     if not write_ok:
         raise HTTPException(
             status_code=500,
