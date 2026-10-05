@@ -256,6 +256,8 @@ export default function ProjectDetail() {
   const [generatingAll, setGeneratingAll] = useState(false);
   const [generateAllProgress, setGenerateAllProgress] = useState({ done: 0, total: 0 });
   const [generateAllDone, setGenerateAllDone] = useState(false);
+  const [applyingAll, setApplyingAll] = useState(false);
+  const [applyAllProgress, setApplyAllProgress] = useState({ done: 0, total: 0 });
 
   useEffect(() => {
     async function fetch() {
@@ -512,6 +514,26 @@ export default function ProjectDetail() {
       setGenerationError(err instanceof Error ? err.message : "Apply failed");
     } finally {
       setApplyingScript(false);
+    }
+  }
+
+  async function handleApplyAll() {
+    const pending = generatedScripts.filter((s) => s.status === "pending");
+    if (pending.length === 0) return;
+    setApplyingAll(true);
+    setApplyAllProgress({ done: 0, total: pending.length });
+    try {
+      for (let i = 0; i < pending.length; i++) {
+        await applyScript(projectId, pending[i].id);
+        setGeneratedScripts((prev) =>
+          prev.map((s) => (s.id === pending[i].id ? { ...s, status: "applied" as const } : s))
+        );
+        setApplyAllProgress({ done: i + 1, total: pending.length });
+      }
+    } catch (err) {
+      setGenerationError(err instanceof Error ? err.message : "Apply all failed");
+    } finally {
+      setApplyingAll(false);
     }
   }
 
@@ -1403,6 +1425,17 @@ ${sections}
                         ? "Generated"
                         : "Generate All"}
                   </button>
+                  {generatedScripts.some((s) => s.status === "pending") && (
+                    <button
+                      onClick={handleApplyAll}
+                      disabled={applyingAll || applyingScript}
+                      className="rounded-lg bg-green-600 px-4 py-1.5 text-xs font-medium text-white hover:bg-green-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                    >
+                      {applyingAll
+                        ? `Applying ${applyAllProgress.done}/${applyAllProgress.total}...`
+                        : "Apply All"}
+                    </button>
+                  )}
                   <button
                     onClick={() => {
                       const ac = acs.find((a) => a.analysis_result === analysisResult) ?? acs[0];
@@ -1432,9 +1465,23 @@ ${sections}
             )}
 
             {analysisResult && !analyzingAcId && (() => {
+              const appliedSet = new Set(
+                generatedScripts
+                  .filter((s) => s.status === "applied")
+                  .map((s) => {
+                    const src = s.source_item as Record<string, unknown>;
+                    return src.test_name as string ?? src.scenario_name as string ?? "";
+                  })
+              );
+
               const directMatches = analysisResult.matches.filter((m) => m.relevance === "direct");
-              const changesNeeded = analysisResult.matches.filter((m) => m.relevance === "required changes");
-              const missingScenarios = analysisResult.missing_scenarios;
+              const allChangesNeeded = analysisResult.matches.filter((m) => m.relevance === "required changes");
+              const changesNeeded = allChangesNeeded.filter((m) => !appliedSet.has(m.test_name));
+              const appliedChanges = allChangesNeeded.filter((m) => appliedSet.has(m.test_name));
+              const allMissing = analysisResult.missing_scenarios;
+              const missingScenarios = allMissing.filter((s) => !appliedSet.has(s.scenario_name));
+              const appliedMissing = allMissing.filter((s) => appliedSet.has(s.scenario_name));
+              const coveredCount = directMatches.length + appliedChanges.length + appliedMissing.length;
 
               return (
                 <div className="space-y-4">
@@ -1453,13 +1500,13 @@ ${sections}
                       }`}
                     >
                       <p className="text-2xl font-bold text-green-700 dark:text-green-300">
-                        {directMatches.length}
+                        {coveredCount}
                       </p>
                       <p className="text-xs font-medium text-green-600 dark:text-green-400">
                         Covered
                       </p>
                       <p className="text-xs text-green-500 dark:text-green-500 mt-1">
-                        Direct matches
+                        {directMatches.length} direct{(appliedChanges.length + appliedMissing.length) > 0 ? ` + ${appliedChanges.length + appliedMissing.length} applied` : ""}
                       </p>
                     </button>
 
@@ -1507,32 +1554,82 @@ ${sections}
                   {/* Covered: Direct Matches */}
                   {resultsPanel === "covered" && (
                     <div className="space-y-2">
-                      <p className="text-xs font-medium text-zinc-500 dark:text-zinc-400">
-                        Direct Match ({directMatches.length})
-                      </p>
-                      {directMatches.length === 0 && (
+                      {coveredCount === 0 && (
                         <p className="text-sm text-zinc-400 py-2">
-                          No direct matches found.
+                          No covered scenarios yet.
                         </p>
                       )}
-                      {directMatches.map((match, i) => (
-                        <div
-                          key={i}
-                          className="rounded-lg border border-green-200 dark:border-green-800 bg-green-50 dark:bg-green-950 p-3"
-                        >
-                          <div className="flex items-baseline gap-2 mb-1">
-                            <span className="font-mono text-xs font-semibold">
-                              {match.test_name}
-                            </span>
-                          </div>
-                          <p className="text-xs text-zinc-500 dark:text-zinc-400 font-mono mb-1">
-                            {match.file_path}
+                      {directMatches.length > 0 && (
+                        <div>
+                          <p className="text-xs font-medium text-zinc-500 dark:text-zinc-400 mb-1">
+                            Direct Match ({directMatches.length})
                           </p>
-                          <p className="text-xs text-zinc-600 dark:text-zinc-300">
-                            {match.explanation}
-                          </p>
+                          {directMatches.map((match, i) => (
+                            <div
+                              key={`direct-${i}`}
+                              className="rounded-lg border border-green-200 dark:border-green-800 bg-green-50 dark:bg-green-950 p-3 mb-2"
+                            >
+                              <span className="font-mono text-xs font-semibold">{match.test_name}</span>
+                              <p className="text-xs text-zinc-500 dark:text-zinc-400 font-mono mt-1">{match.file_path}</p>
+                              <p className="text-xs text-zinc-600 dark:text-zinc-300 mt-1">{match.explanation}</p>
+                            </div>
+                          ))}
                         </div>
-                      ))}
+                      )}
+                      {appliedChanges.length > 0 && (
+                        <div>
+                          <p className="text-xs font-medium text-zinc-500 dark:text-zinc-400 mb-1">
+                            Applied Modifications ({appliedChanges.length})
+                          </p>
+                          {appliedChanges.map((match, i) => {
+                            const s = findScript(match.file_path, match.test_name);
+                            return (
+                              <div
+                                key={`applied-mod-${i}`}
+                                className="rounded-lg border border-green-200 dark:border-green-800 bg-green-50 dark:bg-green-950 p-3 mb-2"
+                              >
+                                <div className="flex items-center justify-between">
+                                  <span className="font-mono text-xs font-semibold">{match.test_name}</span>
+                                  {s && (
+                                    <button onClick={() => setViewingScript(s)} className="text-xs text-blue-600 dark:text-blue-400 hover:underline">
+                                      View Diff
+                                    </button>
+                                  )}
+                                </div>
+                                <p className="text-xs text-zinc-500 dark:text-zinc-400 font-mono mt-1">{match.file_path}</p>
+                                <p className="text-xs text-zinc-600 dark:text-zinc-300 mt-1">{match.explanation}</p>
+                              </div>
+                            );
+                          })}
+                        </div>
+                      )}
+                      {appliedMissing.length > 0 && (
+                        <div>
+                          <p className="text-xs font-medium text-zinc-500 dark:text-zinc-400 mb-1">
+                            Applied New Tests ({appliedMissing.length})
+                          </p>
+                          {appliedMissing.map((scenario, i) => {
+                            const s = findScript(scenario.suggested_file, scenario.scenario_name);
+                            return (
+                              <div
+                                key={`applied-new-${i}`}
+                                className="rounded-lg border border-green-200 dark:border-green-800 bg-green-50 dark:bg-green-950 p-3 mb-2"
+                              >
+                                <div className="flex items-center justify-between">
+                                  <span className="text-xs font-semibold">{scenario.scenario_name}</span>
+                                  {s && (
+                                    <button onClick={() => setViewingScript(s)} className="text-xs text-blue-600 dark:text-blue-400 hover:underline">
+                                      View Code
+                                    </button>
+                                  )}
+                                </div>
+                                <p className="text-xs text-zinc-600 dark:text-zinc-300 mt-1">{scenario.description}</p>
+                                <p className="text-xs text-zinc-400 font-mono mt-1">{scenario.suggested_file}</p>
+                              </div>
+                            );
+                          })}
+                        </div>
+                      )}
                     </div>
                   )}
 
