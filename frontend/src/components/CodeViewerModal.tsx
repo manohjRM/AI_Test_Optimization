@@ -85,31 +85,31 @@ export default function CodeViewerModal({
         </div>
 
         {/* Content */}
-        <div className="flex-1 overflow-hidden">
+        <div className="flex-1 min-h-0">
           {isModification && script.original_content ? (
-            <div className="flex h-full">
+            <div className="flex h-full min-h-0">
               {/* Original */}
-              <div className="flex-1 flex flex-col border-r border-zinc-200 dark:border-zinc-700">
+              <div className="flex-1 flex flex-col min-h-0 min-w-0 border-r border-zinc-200 dark:border-zinc-700">
                 <div className="px-4 py-2 bg-red-50 dark:bg-red-950 border-b border-zinc-200 dark:border-zinc-700 shrink-0">
                   <p className="text-xs font-medium text-red-700 dark:text-red-300">
                     Original
                   </p>
                 </div>
-                <div className="flex-1 overflow-auto">
-                  <pre className="p-4 text-xs font-mono text-zinc-700 dark:text-zinc-300 leading-relaxed whitespace-pre-wrap break-words">
+                <div className="flex-1 min-h-0 overflow-auto">
+                  <pre className="p-4 text-xs font-mono text-zinc-700 dark:text-zinc-300 leading-relaxed whitespace-pre">
                     {script.original_content}
                   </pre>
                 </div>
               </div>
               {/* Generated */}
-              <div className="flex-1 flex flex-col">
+              <div className="flex-1 flex flex-col min-h-0 min-w-0">
                 <div className="px-4 py-2 bg-green-50 dark:bg-green-950 border-b border-zinc-200 dark:border-zinc-700 shrink-0">
                   <p className="text-xs font-medium text-green-700 dark:text-green-300">
                     Generated
                   </p>
                 </div>
-                <div className="flex-1 overflow-auto">
-                  <pre className="p-4 text-xs font-mono text-zinc-700 dark:text-zinc-300 leading-relaxed whitespace-pre-wrap break-words">
+                <div className="flex-1 min-h-0 overflow-auto">
+                  <pre className="p-4 text-xs font-mono text-zinc-700 dark:text-zinc-300 leading-relaxed whitespace-pre">
                     {script.generated_content}
                   </pre>
                 </div>
@@ -117,7 +117,7 @@ export default function CodeViewerModal({
             </div>
           ) : (
             <div className="h-full overflow-auto">
-              <pre className="p-6 text-xs font-mono text-zinc-700 dark:text-zinc-300 leading-relaxed whitespace-pre-wrap break-words">
+              <pre className="p-6 text-xs font-mono text-zinc-700 dark:text-zinc-300 leading-relaxed whitespace-pre">
                 {script.generated_content}
               </pre>
             </div>
