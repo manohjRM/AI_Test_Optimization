@@ -570,6 +570,40 @@ def clone_github_repo(repo_url: str, clone_path: str, git_token: str | None = No
     return True, str(clone_dir)
 
 
+def read_test_file(repo_path: Path, relative_file_path: str) -> str | None:
+    """Read the content of a test file. Returns None if file doesn't exist or is outside the repo."""
+    target = (repo_path / relative_file_path).resolve()
+    if not str(target).startswith(str(repo_path.resolve())):
+        return None
+    if not target.is_file():
+        return None
+    try:
+        return target.read_text(encoding="utf-8", errors="replace")
+    except OSError:
+        return None
+
+
+def write_test_file(repo_path: Path, relative_file_path: str, content: str) -> bool:
+    """Write content to a test file. Creates parent directories if needed."""
+    target = (repo_path / relative_file_path).resolve()
+    if not str(target).startswith(str(repo_path.resolve())):
+        return False
+    try:
+        target.parent.mkdir(parents=True, exist_ok=True)
+        target.write_text(content, encoding="utf-8")
+        return True
+    except OSError:
+        return False
+
+
+def file_exists_in_repo(repo_path: Path, relative_file_path: str) -> bool:
+    """Check if a file exists within the repo."""
+    target = (repo_path / relative_file_path).resolve()
+    if not str(target).startswith(str(repo_path.resolve())):
+        return False
+    return target.is_file()
+
+
 async def validate_cloned_repo(clone_dir: str) -> tuple[bool, str]:
     """Validate that a cloned repo contains test automation."""
     has_tests, detail = detect_test_automation(Path(clone_dir))
