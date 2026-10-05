@@ -253,6 +253,8 @@ export default function ProjectDetail() {
   const [generationError, setGenerationError] = useState<string | null>(null);
   const [viewingScript, setViewingScript] = useState<GeneratedScript | null>(null);
   const [applyingScript, setApplyingScript] = useState(false);
+  const [generatingAll, setGeneratingAll] = useState(false);
+  const [generateAllProgress, setGenerateAllProgress] = useState({ done: 0, total: 0 });
 
   useEffect(() => {
     async function fetch() {
@@ -508,6 +510,56 @@ export default function ProjectDetail() {
       }
     } catch (err) {
       setGenerationError(err instanceof Error ? err.message : "Reject failed");
+    }
+  }
+
+  async function handleGenerateAll() {
+    if (!analysisResult || !activeAcId) return;
+    const changesNeeded = analysisResult.matches.filter((m) => m.relevance === "required changes");
+    const missing = analysisResult.missing_scenarios;
+    const total = changesNeeded.length + missing.length;
+    if (total === 0) return;
+
+    setGeneratingAll(true);
+    setGenerationError(null);
+    setGenerateAllProgress({ done: 0, total });
+
+    let done = 0;
+    try {
+      for (const match of changesNeeded) {
+        if (!findScript(match.file_path, match.test_name)) {
+          const script = await generateModify(projectId, {
+            ac_id: activeAcId,
+            file_path: match.file_path,
+            test_name: match.test_name,
+            modifications_needed: match.modifications_needed,
+          });
+          setGeneratedScripts((prev) => [script, ...prev]);
+        }
+        done++;
+        setGenerateAllProgress({ done, total });
+      }
+
+      for (const scenario of missing) {
+        if (!findScript(scenario.suggested_file, scenario.scenario_name)) {
+          const script = await generateNew(projectId, {
+            ac_id: activeAcId,
+            scenario_name: scenario.scenario_name,
+            scenario_type: scenario.type,
+            description: scenario.description,
+            steps: scenario.steps,
+            priority: scenario.priority,
+            suggested_file: scenario.suggested_file,
+          });
+          setGeneratedScripts((prev) => [script, ...prev]);
+        }
+        done++;
+        setGenerateAllProgress({ done, total });
+      }
+    } catch (err) {
+      setGenerationError(err instanceof Error ? err.message : "Generate all failed");
+    } finally {
+      setGeneratingAll(false);
     }
   }
 
@@ -1322,15 +1374,26 @@ ${sections}
             <div className="flex items-center justify-between mb-4">
               <h2 className="text-sm font-semibold">Analysis Results</h2>
               {analysisResult && !analyzingAcId && (
-                <button
-                  onClick={() => {
-                    const ac = acs.find((a) => a.analysis_result === analysisResult) ?? acs[0];
-                    downloadReport(analysisResult, ac?.content ?? "");
-                  }}
-                  className="rounded-lg border border-purple-300 dark:border-purple-700 px-4 py-1.5 text-xs font-medium text-purple-600 dark:text-purple-400 hover:bg-purple-50 dark:hover:bg-purple-950 transition-colors"
-                >
-                  Download Report
-                </button>
+                <div className="flex gap-2">
+                  <button
+                    onClick={handleGenerateAll}
+                    disabled={generatingAll || !activeAcId || generatingKey !== null}
+                    className="rounded-lg bg-purple-600 px-4 py-1.5 text-xs font-medium text-white hover:bg-purple-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                  >
+                    {generatingAll
+                      ? `Generating ${generateAllProgress.done}/${generateAllProgress.total}...`
+                      : "Generate All"}
+                  </button>
+                  <button
+                    onClick={() => {
+                      const ac = acs.find((a) => a.analysis_result === analysisResult) ?? acs[0];
+                      downloadReport(analysisResult, ac?.content ?? "");
+                    }}
+                    className="rounded-lg border border-purple-300 dark:border-purple-700 px-4 py-1.5 text-xs font-medium text-purple-600 dark:text-purple-400 hover:bg-purple-50 dark:hover:bg-purple-950 transition-colors"
+                  >
+                    Download Report
+                  </button>
+                </div>
               )}
             </div>
 
