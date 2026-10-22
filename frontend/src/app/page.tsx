@@ -92,6 +92,12 @@ export default function Dashboard() {
       </header>
 
       <div className="flex-1 p-6">
+        <div className="rounded-lg border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 p-5 mb-6">
+          <p className="text-sm text-zinc-600 dark:text-zinc-400 leading-relaxed">
+            Analyse your existing test suites against BDD acceptance criteria using AI. The agent identifies which tests already cover your requirements, which need modifications, and what new tests are missing. Generate and accept test scripts directly into your repo with full git tracking.
+          </p>
+        </div>
+
         {loading && (
           <div className="text-sm text-zinc-500 text-center py-12">
             Loading projects...
