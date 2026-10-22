@@ -6,6 +6,7 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { getSettings, updateSettings, testLLMConnection } from "@/lib/api";
+import ThemeToggle from "@/components/ThemeToggle";
 
 const PROVIDERS = [
   { value: "anthropic", label: "Anthropic (Claude)" },
@@ -161,12 +162,15 @@ export default function SettingsPage() {
         </div>
         <div className="flex items-center justify-between">
           <h1 className="text-xl font-bold">LLM Settings</h1>
-          <Link
-            href="/"
-            className="rounded-lg border border-zinc-300 dark:border-zinc-700 px-4 py-2 text-sm font-medium hover:bg-zinc-50 dark:hover:bg-zinc-800 transition-colors"
-          >
-            Back to Dashboard
-          </Link>
+          <div className="flex items-center gap-3">
+            <ThemeToggle />
+            <Link
+              href="/"
+              className="rounded-lg border border-zinc-300 dark:border-zinc-700 px-4 py-2 text-sm font-medium hover:bg-zinc-50 dark:hover:bg-zinc-800 transition-colors"
+            >
+              Back to Dashboard
+            </Link>
+          </div>
         </div>
         <p className="text-sm text-zinc-500 dark:text-zinc-400 mt-1">
           Configure the AI provider used for test analysis and generation.

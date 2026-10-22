@@ -6,6 +6,7 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { listProjects, deleteProject } from "@/lib/api";
+import ThemeToggle from "@/components/ThemeToggle";
 import type { Project } from "@/types";
 
 const STATUS_LABELS: Record<string, { text: string; className: string }> = {
@@ -57,6 +58,7 @@ export default function Dashboard() {
           </p>
         </div>
         <div className="flex items-center gap-3">
+          <ThemeToggle />
           <Link
             href="/settings"
             className="rounded-lg border border-zinc-300 dark:border-zinc-700 p-2 hover:bg-zinc-50 dark:hover:bg-zinc-800 transition-colors"

@@ -7,6 +7,7 @@ import { useEffect, useState, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { createProject, listSystemDirs } from "@/lib/api";
+import ThemeToggle from "@/components/ThemeToggle";
 import type { ProjectCreate, SystemDir } from "@/types";
 
 
@@ -279,12 +280,15 @@ export default function NewProject() {
   return (
     <main className="flex-1 flex flex-col">
       <header className="border-b border-zinc-200 dark:border-zinc-800 px-6 py-4">
-        <div className="flex items-center gap-2 text-sm text-zinc-500 dark:text-zinc-400 mb-1">
-          <Link href="/" className="hover:text-zinc-900 dark:hover:text-zinc-100 transition-colors">
-            Dashboard
-          </Link>
-          <span>/</span>
-          <span>New Project</span>
+        <div className="flex items-center justify-between mb-1">
+          <div className="flex items-center gap-2 text-sm text-zinc-500 dark:text-zinc-400">
+            <Link href="/" className="hover:text-zinc-900 dark:hover:text-zinc-100 transition-colors">
+              Dashboard
+            </Link>
+            <span>/</span>
+            <span>New Project</span>
+          </div>
+          <ThemeToggle />
         </div>
         <h1 className="text-xl font-bold">Create Project</h1>
       </header>
