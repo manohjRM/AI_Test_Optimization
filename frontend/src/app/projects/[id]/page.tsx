@@ -224,6 +224,7 @@ export default function ProjectDetail() {
   const [stats, setStats] = useState<TestStats | null>(null);
   const [statsLoading, setStatsLoading] = useState(false);
   const [statsError, setStatsError] = useState<string | null>(null);
+  const [showTestPathBrowser, setShowTestPathBrowser] = useState(false);
 
   // Acceptance criteria
   const [acs, setAcs] = useState<ACRead[]>([]);
@@ -339,6 +340,7 @@ export default function ProjectDetail() {
       const updated = await updateProject(projectId, { test_path: path });
       setProject(updated);
       setStats(null);
+      setShowTestPathBrowser(false);
       fetchStats();
     } catch (err) {
       setStatsError(
@@ -1154,16 +1156,24 @@ ${sections}
           <section className="rounded-lg border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 p-5">
             <div className="flex items-center justify-between mb-4">
               <h2 className="text-sm font-semibold">Test Suite</h2>
-              <button
-                onClick={fetchStats}
-                disabled={statsLoading}
-                className="text-xs px-3 py-1 rounded border border-zinc-300 dark:border-zinc-700 hover:bg-zinc-100 dark:hover:bg-zinc-800 disabled:opacity-50 transition-colors"
-              >
-                {statsLoading ? "Scanning..." : "Refresh"}
-              </button>
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={() => setShowTestPathBrowser(!showTestPathBrowser)}
+                  className="text-xs px-3 py-1 rounded border border-blue-300 dark:border-blue-700 text-blue-600 dark:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-950 transition-colors"
+                >
+                  {showTestPathBrowser ? "Cancel" : "Edit Path"}
+                </button>
+                <button
+                  onClick={fetchStats}
+                  disabled={statsLoading}
+                  className="text-xs px-3 py-1 rounded border border-zinc-300 dark:border-zinc-700 hover:bg-zinc-100 dark:hover:bg-zinc-800 disabled:opacity-50 transition-colors"
+                >
+                  {statsLoading ? "Scanning..." : "Refresh"}
+                </button>
+              </div>
             </div>
 
-            {project.test_path && (
+            {project.test_path && !showTestPathBrowser && (
               <div className="flex items-center gap-2 mb-4 text-xs">
                 <span className="text-zinc-500 dark:text-zinc-400">
                   Test path:
@@ -1187,11 +1197,12 @@ ${sections}
               </p>
             )}
 
-            {stats && stats.total_files === 0 && !project.test_path && (
+            {(showTestPathBrowser || (stats && stats.total_files === 0 && !project.test_path)) && (
               <div className="space-y-3 mb-4">
                 <p className="text-sm text-zinc-500 dark:text-zinc-400">
-                  No tests detected automatically. Select the directory
-                  containing your test files:
+                  {project.test_path
+                    ? "Select a different directory for your test files:"
+                    : "No tests detected automatically. Select the directory containing your test files:"}
                 </p>
                 <RepoDirBrowser
                   projectId={projectId}
