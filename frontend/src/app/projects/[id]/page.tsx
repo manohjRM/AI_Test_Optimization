@@ -884,6 +884,9 @@ ${sections}
       {/* Header */}
       <header className="border-b border-zinc-200 dark:border-zinc-800 px-6 py-4 flex items-start justify-between gap-4">
         <div>
+          <p className="text-xs font-semibold text-blue-600 dark:text-blue-400 tracking-wide uppercase mb-1">
+            AI Test Optimisation
+          </p>
           <div className="flex items-center gap-2 text-sm text-zinc-500 dark:text-zinc-400 mb-1">
             <Link
               href="/"
