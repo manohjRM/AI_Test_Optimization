@@ -341,7 +341,10 @@ export default function ProjectDetail() {
       setProject(updated);
       setStats(null);
       setShowTestPathBrowser(false);
-      fetchStats();
+      setAnalysisResult(null);
+      setGeneratedScripts([]);
+      setGenerateAllDone(false);
+      await fetchStats();
     } catch (err) {
       setStatsError(
         err instanceof Error ? err.message : "Failed to set test path"
@@ -354,7 +357,10 @@ export default function ProjectDetail() {
       const updated = await updateProject(projectId, { test_path: null });
       setProject(updated);
       setStats(null);
-      fetchStats();
+      setAnalysisResult(null);
+      setGeneratedScripts([]);
+      setGenerateAllDone(false);
+      await fetchStats();
     } catch (err) {
       setStatsError(
         err instanceof Error ? err.message : "Failed to clear test path"
